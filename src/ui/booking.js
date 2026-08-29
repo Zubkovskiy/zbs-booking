@@ -6,7 +6,7 @@
 // не губиться на кожному кліку.
 
 import { nextDays, countFree, bestDayIndex, dayKey, monthGrid, monthIndex, isWorkday } from "../core/schedule.js";
-import { shortDate, relDayLabel, monthTitle, freeLabel, plural, MONTH_FULL, WEEKDAY_HEAD } from "../core/format.js";
+import { shortDate, relDayLabel, monthTitle, freeLabel, freeDaysLabel, busyReason, plural, MONTH_FULL, WEEKDAY_HEAD } from "../core/format.js";
 import { normalizeName, normalizePhone } from "../core/validate.js";
 
 /** На скільки днів уперед відкритий запис. Три місяці — щоб при щільному
@@ -203,7 +203,7 @@ export function mountBooking(root, business, adapter) {
       if (!day) continue;
       chips.push({
         label,
-        sub: day.free ? freeLabel(day.free) : "немає",
+        sub: day.free ? freeLabel(day.free) : busyReason(day.closed),
         day,
         active: state.key === day.key,
       });
@@ -217,7 +217,7 @@ export function mountBooking(root, business, adapter) {
       const n = days.filter((d) => monthOf(d) === month && d.free > 0).length;
       chips.push({
         label: MONTH_FULL[first.date.getMonth()],
-        sub: `${n} ${plural(n, "день", "дні", "днів")}`,
+        sub: freeDaysLabel(n),
         day: first,
         active: monthOf(current()) === month,
       });
@@ -287,7 +287,7 @@ export function mountBooking(root, business, adapter) {
       b.title = !day
         ? `запис відкритий на ${DAYS_AHEAD} ${plural(DAYS_AHEAD, "день", "дні", "днів")} уперед`
         : day.free === 0
-          ? (day.closed ? "вихідний" : "на цей день вільного часу немає")
+          ? busyReason(day.closed)
           : freeLabel(day.free);
       b.setAttribute("aria-label", `${shortDate(cell.date)} — ${b.title}`);
       if (kind === "free") {
@@ -313,7 +313,7 @@ export function mountBooking(root, business, adapter) {
 
     const counter = $("p-time");
     counter.className = `count${day.free ? "" : " zero"}`;
-    counter.textContent = `${freeLabel(day.free)} · ${relDayLabel(day.date, today)}`;
+    counter.textContent = `${day.free ? freeLabel(day.free) : busyReason(day.closed)} · ${relDayLabel(day.date, today)}`;
 
     for (const s of day.slots) {
       const sel = state.time === s.time && s.free;

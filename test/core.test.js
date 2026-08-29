@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { dayKey, hashPercent, buildSlots, countFree, nextDays, bestDayIndex, monthGrid, monthIndex } from "../src/core/schedule.js";
-import { plural, shortDate, dayLabel, relDayLabel, relLongDayLabel, longDate, monthTitle, freeLabel } from "../src/core/format.js";
+import { plural, shortDate, dayLabel, relDayLabel, relLongDayLabel, longDate, monthTitle, freeLabel, freeDaysLabel, busyReason } from "../src/core/format.js";
 import { normalizePhone, prettyPhone, normalizeName } from "../src/core/validate.js";
 import { clientConfirmation, adminAlert, reminderAt, buildAll } from "../src/core/messages.js";
 
@@ -223,10 +223,22 @@ test("relDayLabel: далі за завтра показуємо дату, а н
 
 test("monthTitle і freeLabel говорять українською", () => {
   assert.equal(monthTitle(2026, 7), "серпень 2026");
-  assert.equal(freeLabel(1), "1 вільний");
-  assert.equal(freeLabel(3), "3 вільні");
-  assert.equal(freeLabel(5), "5 вільних");
-  assert.equal(freeLabel(11), "11 вільних");
+  assert.equal(freeLabel(1), "1 вільне місце");
+  assert.equal(freeLabel(3), "3 вільні місця");
+  assert.equal(freeLabel(5), "5 вільних місць");
+  assert.equal(freeLabel(11), "11 вільних місць");
+});
+
+test("freeDaysLabel рахує дні, а не місця", () => {
+  assert.equal(freeDaysLabel(1), "1 вільний день");
+  assert.equal(freeDaysLabel(2), "2 вільні дні");
+  assert.equal(freeDaysLabel(26), "26 вільних днів");
+});
+
+test("закритий день і забитий день — різні причини, і плутати їх не можна", () => {
+  assert.equal(busyReason(true), "не працюємо");
+  assert.equal(busyReason(false), "все зайнято");
+  assert.notEqual(busyReason(true), busyReason(false));
 });
 
 /* ── текст повідомлень не має мовчки поїхати ────────────────────────── */
