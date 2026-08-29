@@ -6,6 +6,11 @@ export const MONTH_FULL = [
   "січень", "лютий", "березень", "квітень", "травень", "червень",
   "липень", "серпень", "вересень", "жовтень", "листопад", "грудень",
 ];
+/** Родовий відмінок — для дат: «1 вересня». Називний — для заголовка місяця. */
+export const MONTH_GEN = [
+  "січня", "лютого", "березня", "квітня", "травня", "червня",
+  "липня", "серпня", "вересня", "жовтня", "листопада", "грудня",
+];
 /** Заголовки колонок календаря. Тиждень починається з понеділка. */
 export const WEEKDAY_HEAD = ["пн", "вт", "ср", "чт", "пт", "сб", "нд"];
 
@@ -46,6 +51,17 @@ export function dayLabel(date, now = new Date()) {
 export function relDayLabel(date, now = new Date()) {
   const near = dayLabel(date, now);
   return near === "сьогодні" || near === "завтра" ? near : shortDate(date);
+}
+
+/** «1 вересня» — дата словами, коли є місце написати повністю. */
+export function longDate(date) {
+  return `${date.getDate()} ${MONTH_GEN[date.getMonth()]}`;
+}
+
+/** Те саме, що relDayLabel, але місяць не скорочуємо: «сьогодні» / «1 вересня». */
+export function relLongDayLabel(date, now = new Date()) {
+  const near = dayLabel(date, now);
+  return near === "сьогодні" || near === "завтра" ? near : longDate(date);
 }
 
 /** «серпень 2026» — заголовок місяця в календарі. */

@@ -96,7 +96,7 @@ button,input{font-family:inherit}
 .t-txt{display:block;min-width:0;text-align:left}
 .t-name{display:block;font-weight:600;font-size:14.5px;line-height:1.3}
 .t-note{display:block;color:var(--muted);font-size:12.5px;line-height:1.35;margin-top:3px}
-.t-right{flex:none;display:flex;align-items:center;gap:9px;padding-top:1px}
+.t-right{flex:none;align-self:center;display:flex;align-items:center;gap:9px}
 .price{font-family:Oswald,sans-serif;font-weight:500;font-size:14.5px;white-space:nowrap;color:var(--free)}
 .chev{color:var(--muted);transition:transform .18s}
 .trigger.open .chev{transform:rotate(180deg)}
@@ -136,7 +136,7 @@ button,input{font-family:inherit}
   transition:background .15s,border-color .15s,box-shadow .15s;
 }
 .card.sel{border-color:var(--accent);background:var(--sel);box-shadow:inset 0 0 0 1px var(--accent)}
-.tick-sm{flex:none;margin-top:2px;visibility:hidden}
+.tick-sm{flex:none;visibility:hidden}
 .sel .tick-sm{visibility:visible}
 
 /* крок 3 — день */

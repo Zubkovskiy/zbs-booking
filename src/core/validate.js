@@ -15,7 +15,11 @@ export function normalizePhone(raw) {
   else if (digits.length === 10 && digits.startsWith("0")) nine = digits.slice(1);
   else if (digits.length === 12 && digits.startsWith("380")) nine = digits.slice(3);
   else if (digits.length === 11 && digits.startsWith("80")) nine = digits.slice(2);
-  else return { ok: false, error: "У номері має бути 10 цифр. Приклад: 067 111 22 33." };
+  // Помилка має називати справжню причину. «Замало цифр» на десятизначний
+  // номер — це неправда, і людина не розуміє, що виправляти.
+  else if (digits.length === 10) return { ok: false, error: "Український номер починається з нуля. Приклад: 067 111 22 33." };
+  else if (digits.length < 9) return { ok: false, error: "У номері замало цифр. Приклад: 067 111 22 33." };
+  else return { ok: false, error: "У номері забагато цифр. Приклад: 067 111 22 33." };
 
   if (!/^[3-9]\d{8}$/.test(nine)) return { ok: false, error: "Такого коду оператора не буває." };
   return { ok: true, value: "+380" + nine };
@@ -30,6 +34,8 @@ export function prettyPhone(e164) {
 export function normalizeName(raw) {
   const v = String(raw ?? "").trim().replace(/\s+/g, " ");
   if (!v) return { ok: false, error: "Вкажіть ім'я — так ми знаємо, кого чекати." };
+  if (/\d/.test(v)) return { ok: false, error: "Ім'я не може містити цифр." };
+  if (!/\p{L}/u.test(v)) return { ok: false, error: "Напишіть ім'я літерами." };
   if (v.length < 2) return { ok: false, error: "Ім'я коротке — напишіть повністю." };
   if (v.length > 60) return { ok: false, error: "Занадто довге ім'я." };
   return { ok: true, value: v };

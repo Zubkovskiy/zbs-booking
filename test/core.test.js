@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { dayKey, hashPercent, buildSlots, countFree, nextDays, bestDayIndex, monthGrid, monthIndex } from "../src/core/schedule.js";
-import { plural, shortDate, dayLabel, relDayLabel, monthTitle, freeLabel } from "../src/core/format.js";
+import { plural, shortDate, dayLabel, relDayLabel, relLongDayLabel, longDate, monthTitle, freeLabel } from "../src/core/format.js";
 import { normalizePhone, prettyPhone, normalizeName } from "../src/core/validate.js";
 import { clientConfirmation, adminAlert, reminderAt, buildAll } from "../src/core/messages.js";
 
@@ -271,4 +271,43 @@ test("у кожного повідомлення є частини, з яких 
     assert.ok(m.body.includes(m.parts.title));
     for (const line of m.parts.lines) assert.ok(m.body.includes(line), `рядок загубився: ${line}`);
   }
+});
+
+/* ── помилка має називати справжню причину ──────────────────────────── */
+
+test("десять цифр не з нуля: помилка не бреше, що цифр мало", () => {
+  const r = normalizePhone("3333333333");
+  assert.equal(r.ok, false);
+  assert.ok(!/10 цифр|замало/.test(r.error), `помилка вводить в оману: ${r.error}`);
+  assert.ok(r.error.includes("нуля"), "має сказати, що номер починається з нуля");
+});
+
+test("кожна довжина номера пояснюється по-своєму", () => {
+  assert.ok(normalizePhone("12345").error.includes("замало"));
+  assert.ok(normalizePhone("06711122333331").error.includes("забагато"));
+  assert.equal(normalizePhone("067 111 22 33").value, "+380671112233");
+});
+
+test("ім'я з цифр не приймається", () => {
+  for (const raw of ["7787878", "Олег2", "123 456"]) {
+    const r = normalizeName(raw);
+    assert.equal(r.ok, false, `${raw} має відхилятись`);
+    assert.ok(r.error.includes("цифр"), `помилка має пояснити чому: ${r.error}`);
+  }
+  assert.equal(normalizeName("Олег").ok, true);
+  assert.equal(normalizeName("Анна-Марія").ok, true);
+});
+
+/* ── дати словами ───────────────────────────────────────────────────── */
+
+test("longDate пише місяць повністю і в родовому відмінку", () => {
+  assert.equal(longDate(new Date(2026, 8, 1)), "1 вересня");
+  assert.equal(longDate(new Date(2026, 7, 31)), "31 серпня");
+});
+
+test("relLongDayLabel лишає «сьогодні» і «завтра», решту пише повністю", () => {
+  const now = new Date(2026, 7, 30);
+  assert.equal(relLongDayLabel(new Date(2026, 7, 30), now), "сьогодні");
+  assert.equal(relLongDayLabel(new Date(2026, 7, 31), now), "завтра");
+  assert.equal(relLongDayLabel(new Date(2026, 8, 2), now), "2 вересня");
 });

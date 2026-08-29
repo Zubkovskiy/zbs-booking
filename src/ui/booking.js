@@ -6,7 +6,7 @@
 // не губиться на кожному кліку.
 
 import { nextDays, countFree, bestDayIndex, dayKey, monthGrid, monthIndex, isWorkday } from "../core/schedule.js";
-import { shortDate, relDayLabel, monthTitle, freeLabel, plural, WEEKDAY_HEAD } from "../core/format.js";
+import { shortDate, relDayLabel, relLongDayLabel, monthTitle, freeLabel, plural, WEEKDAY_HEAD } from "../core/format.js";
 import { normalizeName, normalizePhone } from "../core/validate.js";
 
 /** На скільки днів уперед відкритий запис. */
@@ -14,7 +14,7 @@ const DAYS_AHEAD = 30;
 /** Скільки днів-ярликів показувати над календарем. */
 const QUICK_DAYS = 3;
 
-const TICK = '<svg class="tick-sm" width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.5 8.5l3.5 3.5 7.5-8" stroke="var(--accent)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const TICK = '<svg class="tick-sm" width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.5 8.5l3.5 3.5 7.5-8" stroke="var(--free)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const CHEV = '<svg class="chev" width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 6l5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const BIG_TICK = '<svg width="22" height="22" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.5 8.5l3.5 3.5 7.5-8" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
@@ -203,7 +203,7 @@ export function mountBooking(root, business, adapter) {
       b.className = `chip${state.key === day.key ? " on" : ""}`;
       b.dataset.k = `chip-${day.key}`;
       b.innerHTML = '<b class="chip-day"></b><span class="chip-free"></span>';
-      b.querySelector(".chip-day").textContent = relDayLabel(day.date, today);
+      b.querySelector(".chip-day").textContent = relLongDayLabel(day.date, today);
       b.querySelector(".chip-free").textContent = freeLabel(day.free);
       b.setAttribute("aria-label", `${shortDate(day.date)} — ${freeLabel(day.free)}`);
       b.onclick = () => pickDay(day);
