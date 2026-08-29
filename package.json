@@ -6,7 +6,7 @@
   "description": "Сторінка запису для малого бізнесу: демо під заклад і бойова версія з одного коду",
   "scripts": {
     "build": "node build/build.mjs",
-    "test": "node --test \"test/*.test.js\"",
+    "test": "node --test",
     "check": "npm test && npm run build",
     "serve": "node --run build && npx --yes http-server dist -p 4173 -c-1"
   },
