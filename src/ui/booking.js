@@ -1,5 +1,9 @@
 // Складання сторінки. Тут тільки DOM і стан екрана.
 // Усе, що можна порахувати без браузера, живе в core/ і покрите тестами.
+//
+// Блоки послуг і постів будуються ОДИН раз, далі лише синхронізуються.
+// Через це випадайка може плавно анімуватись, а фокус із клавіатури
+// не губиться на кожному кліку.
 
 import { nextDays, countFree, bestDayIndex, dayKey, monthGrid, monthIndex, isWorkday } from "../core/schedule.js";
 import { shortDate, relDayLabel, monthTitle, freeLabel, plural, WEEKDAY_HEAD } from "../core/format.js";
@@ -7,10 +11,16 @@ import { normalizeName, normalizePhone } from "../core/validate.js";
 
 /** На скільки днів уперед відкритий запис. */
 const DAYS_AHEAD = 30;
+/** Скільки днів-ярликів показувати над календарем. */
+const QUICK_DAYS = 3;
 
 const TICK = '<svg class="tick-sm" width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.5 8.5l3.5 3.5 7.5-8" stroke="var(--accent)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const CHEV = '<svg class="chev" width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 6l5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const BIG_TICK = '<svg width="22" height="22" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.5 8.5l3.5 3.5 7.5-8" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+const OPT_MARKUP =
+  '<span class="t-txt"><span class="t-name"></span><span class="t-note"></span></span>' +
+  `<span class="t-right">${TICK}<span class="price"></span></span>`;
 
 const pad = (n) => String(n).padStart(2, "0");
 
@@ -70,31 +80,32 @@ export function mountBooking(root, business, adapter) {
   }
 
   /* ── крок 1: послуга ─────────────────────────────────────────────────── */
-  function paintService() {
-    const box = $("services");
-    box.textContent = "";
-    const chosen = state.svc === null ? null : business.services[state.svc];
+  // Будується один раз. Список лишається в DOM і коли згорнутий — інакше
+  // нема чому анімуватись, а перемальовування вбивало б перехід.
+  let trigger, svcWrap;
+  const svcOpts = [];
 
-    const trigger = document.createElement("button");
+  function buildService() {
+    const box = $("services");
+
+    trigger = document.createElement("button");
     trigger.type = "button";
-    trigger.className = `trigger${state.svcOpen ? " open" : ""}${chosen ? " chosen" : ""}`;
-    trigger.setAttribute("aria-expanded", String(state.svcOpen));
+    trigger.className = "trigger";
     trigger.setAttribute("aria-controls", "svc-list");
     trigger.innerHTML =
       '<span class="t-txt"><span class="t-name"></span><span class="t-note"></span></span>' +
       `<span class="t-right"><span class="price"></span>${CHEV}</span>`;
-    trigger.querySelector(".t-name").textContent = chosen ? chosen.name : "Оберіть послугу";
-    trigger.querySelector(".t-note").textContent = chosen
-      ? (chosen.note ?? "")
-      : `${business.services.length} ${plural(business.services.length, "послуга", "послуги", "послуг")} · ціни одразу`;
-    trigger.querySelector(".price").textContent = chosen ? (chosen.price ?? "") : "";
     trigger.onclick = () => {
       state.svcOpen = !state.svcOpen;
-      paint();
+      syncService();
     };
-    box.append(trigger);
 
-    if (!state.svcOpen) return;
+    svcWrap = document.createElement("div");
+    svcWrap.className = "svc-wrap";
+
+    // Окремий шар-обрізач: без нього рамка згорнутого списку лишає 2 px висоти.
+    const clip = document.createElement("div");
+    clip.className = "svc-clip";
 
     const list = document.createElement("div");
     list.id = "svc-list";
@@ -102,15 +113,11 @@ export function mountBooking(root, business, adapter) {
     list.setAttribute("role", "listbox");
 
     business.services.forEach((s, i) => {
-      const sel = state.svc === i;
       const opt = document.createElement("button");
       opt.type = "button";
-      opt.className = `svc-opt${sel ? " sel" : ""}`;
+      opt.className = "svc-opt";
       opt.setAttribute("role", "option");
-      opt.setAttribute("aria-selected", String(sel));
-      opt.innerHTML =
-        '<span class="t-txt"><span class="t-name"></span><span class="t-note"></span></span>' +
-        `<span class="t-right">${sel ? TICK : ""}<span class="price"></span></span>`;
+      opt.innerHTML = OPT_MARKUP;
       opt.querySelector(".t-name").textContent = s.name;
       opt.querySelector(".t-note").textContent = s.note ?? "";
       opt.querySelector(".price").textContent = s.price ?? "";
@@ -119,57 +126,87 @@ export function mountBooking(root, business, adapter) {
         state.svcOpen = false;
         paint();
       };
+      svcOpts.push(opt);
       list.append(opt);
     });
 
-    box.append(list);
+    clip.append(list);
+    svcWrap.append(clip);
+    box.append(trigger, svcWrap);
+  }
+
+  function syncService() {
+    const chosen = state.svc === null ? null : business.services[state.svc];
+
+    trigger.className = `trigger${state.svcOpen ? " open" : ""}${chosen ? " chosen" : ""}`;
+    trigger.setAttribute("aria-expanded", String(state.svcOpen));
+    trigger.querySelector(".t-name").textContent = chosen ? chosen.name : "Оберіть послугу";
+    trigger.querySelector(".t-note").textContent = chosen
+      ? (chosen.note ?? "")
+      : `${business.services.length} ${plural(business.services.length, "послуга", "послуги", "послуг")} · ціни одразу`;
+    trigger.querySelector(".price").textContent = chosen ? (chosen.price ?? "") : "";
+
+    svcWrap.classList.toggle("open", state.svcOpen);
+    svcOpts.forEach((opt, i) => {
+      const sel = state.svc === i;
+      opt.classList.toggle("sel", sel);
+      opt.setAttribute("aria-selected", String(sel));
+    });
   }
 
   /* ── крок 2: пост ────────────────────────────────────────────────────── */
-  function paintUnits() {
+  const unitCards = [];
+
+  function buildUnits() {
     const box = $("units");
-    box.textContent = "";
 
     business.units.forEach((u, i) => {
-      const sel = state.unit === i;
       const card = document.createElement("button");
       card.type = "button";
-      card.className = `card${sel ? " sel" : ""}`;
-      card.setAttribute("aria-pressed", String(sel));
-      card.innerHTML =
-        '<span class="t-txt"><span class="t-name"></span><span class="t-note"></span></span>' +
-        (sel ? TICK : "");
+      card.className = "card";
+      card.innerHTML = OPT_MARKUP;
       card.querySelector(".t-name").textContent = u.name;
       card.querySelector(".t-note").textContent = u.note ?? "";
+      card.querySelector(".price").remove();
       card.onclick = async () => {
         if (state.unit === i) return;
         state.unit = i;
         await loadDays();       // у іншого поста свій розклад
         paint();
       };
+      unitCards.push(card);
       box.append(card);
     });
   }
 
+  function syncUnits() {
+    unitCards.forEach((card, i) => {
+      const sel = state.unit === i;
+      card.classList.toggle("sel", sel);
+      card.setAttribute("aria-pressed", String(sel));
+    });
+  }
+
   /* ── крок 3: день ────────────────────────────────────────────────────── */
+  // Ярлики ведуть на найближчі дні, де СПРАВДІ є вільний час, і одразу
+  // кажуть скільки його. Мертвих кнопок тут не буває.
   function paintQuick() {
     const box = $("quick");
     box.textContent = "";
-    const nearest = days.find((d) => d.free > 0) ?? days[0];
 
-    const chips = [
-      { day: days[0], label: "сьогодні" },
-      { day: days[1], label: "завтра" },
-      { day: nearest, label: "найближчий вільний" },
-    ];
+    const free = days.filter((d) => d.free > 0).slice(0, QUICK_DAYS);
+    box.hidden = free.length === 0;
 
-    for (const { day, label } of chips) {
+    for (const day of free) {
       const b = document.createElement("button");
       b.type = "button";
       b.className = `chip${state.key === day.key ? " on" : ""}`;
-      b.textContent = label;
-      b.disabled = day.free === 0;
-      if (!b.disabled) b.onclick = () => pickDay(day);
+      b.dataset.k = `chip-${day.key}`;
+      b.innerHTML = '<b class="chip-day"></b><span class="chip-free"></span>';
+      b.querySelector(".chip-day").textContent = relDayLabel(day.date, today);
+      b.querySelector(".chip-free").textContent = freeLabel(day.free);
+      b.setAttribute("aria-label", `${shortDate(day.date)} — ${freeLabel(day.free)}`);
+      b.onclick = () => pickDay(day);
       box.append(b);
     }
   }
@@ -224,7 +261,10 @@ export function mountBooking(root, business, adapter) {
           ? (day.closed ? "вихідний" : "на цей день вільного часу немає")
           : freeLabel(day.free);
       b.setAttribute("aria-label", `${shortDate(cell.date)} — ${b.title}`);
-      if (kind === "free") b.onclick = () => pickDay(day);
+      if (kind === "free") {
+        b.dataset.k = `cell-${day.key}`;
+        b.onclick = () => pickDay(day);
+      }
 
       grid.append(b);
     }
@@ -256,6 +296,7 @@ export function mountBooking(root, business, adapter) {
       b.setAttribute("aria-pressed", String(sel));
       b.title = s.free ? "вільно" : s.why === "past" ? "час уже минув" : "зайнято";
       if (s.free) {
+        b.dataset.k = `slot-${s.time}`;
         b.onclick = () => {
           state.time = s.time;
           paint();
@@ -292,12 +333,21 @@ export function mountBooking(root, business, adapter) {
   }
 
   function paint() {
-    paintService();
-    paintUnits();
+    // Сітки перемальовуються, тому фокус із клавіатури треба повернути на
+    // ту саму кнопку, інакше він падає на початок сторінки.
+    const held = root.activeElement && root.activeElement.dataset ? root.activeElement.dataset.k : null;
+
+    syncService();
+    syncUnits();
     paintQuick();
     paintCalendar();
     paintSlots();
     paintFoot();
+
+    if (held) {
+      const back = root.querySelector(`[data-k="${held}"]`);
+      if (back) back.focus();
+    }
   }
 
   /* ── помилки полів ───────────────────────────────────────────────────── */
@@ -427,5 +477,7 @@ export function mountBooking(root, business, adapter) {
     box.hidden = false;
   }
 
+  buildService();
+  buildUnits();
   loadDays().then(paint);
 }

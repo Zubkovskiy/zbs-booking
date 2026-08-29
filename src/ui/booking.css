@@ -97,12 +97,23 @@ button,input{font-family:inherit}
 .t-name{display:block;font-weight:600;font-size:14.5px;line-height:1.3}
 .t-note{display:block;color:var(--muted);font-size:12.5px;line-height:1.35;margin-top:3px}
 .t-right{flex:none;display:flex;align-items:center;gap:9px;padding-top:1px}
-.price{font-family:Oswald,sans-serif;font-weight:500;font-size:14.5px;white-space:nowrap;color:var(--accent2)}
+.price{font-family:Oswald,sans-serif;font-weight:500;font-size:14.5px;white-space:nowrap;color:var(--free)}
 .chev{color:var(--muted);transition:transform .18s}
 .trigger.open .chev{transform:rotate(180deg)}
 
+/* Розгортання через grid-template-rows: працює на будь-якій висоті вмісту,
+   без магічних max-height. visibility прибирає згорнутий список із табуляції. */
+.svc-wrap{
+  display:grid;grid-template-rows:0fr;margin-top:0;opacity:0;visibility:hidden;
+  transition:grid-template-rows .24s ease,margin-top .24s ease,opacity .18s ease,visibility 0s linear .24s;
+}
+.svc-wrap.open{
+  grid-template-rows:1fr;margin-top:8px;opacity:1;visibility:visible;
+  transition:grid-template-rows .24s ease,margin-top .24s ease,opacity .18s ease,visibility 0s;
+}
+.svc-clip{min-height:0;overflow:hidden}
 .svc-list{
-  margin-top:8px;overflow:hidden;border:1px solid var(--line);border-radius:10px;
+  overflow:hidden;border:1px solid var(--line);border-radius:10px;
   background:var(--surface);box-shadow:var(--shadow-lg);
 }
 .svc-opt{
@@ -124,19 +135,23 @@ button,input{font-family:inherit}
   cursor:pointer;box-shadow:var(--shadow);
   transition:background .15s,border-color .15s,box-shadow .15s;
 }
-.card.sel{padding:10px 12px;border:2px solid var(--accent);background:var(--sel);box-shadow:none}
-.tick-sm{flex:none;margin-top:2px}
+.card.sel{border-color:var(--accent);background:var(--sel);box-shadow:inset 0 0 0 1px var(--accent)}
+.tick-sm{flex:none;margin-top:2px;visibility:hidden}
+.sel .tick-sm{visibility:visible}
 
 /* крок 3 — день */
 .chips{display:flex;gap:8px;margin-bottom:10px}
 .chip{
-  flex:1 1 auto;min-height:44px;padding:10px 8px;border-radius:10px;
-  display:flex;align-items:center;justify-content:center;text-align:center;line-height:1.25;
+  flex:1 1 0;min-width:0;min-height:52px;padding:8px 6px;border-radius:10px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  text-align:center;line-height:1.2;
   border:1px solid var(--line);background:var(--surface);color:var(--text);
-  font-size:13.5px;font-weight:500;cursor:pointer;transition:background .15s,border-color .15s;
+  cursor:pointer;transition:background .15s,border-color .15s,box-shadow .15s;
 }
-.chip.on{border:2px solid var(--accent);background:var(--sel);font-weight:600}
-.chip[disabled]{color:var(--muted);opacity:.55;cursor:not-allowed}
+.chip.on{border-color:var(--accent);background:var(--sel);box-shadow:inset 0 0 0 1px var(--accent)}
+.chip-day{font-size:13.5px;font-weight:600}
+.chip-free{font-size:11.5px;color:var(--muted);white-space:nowrap}
+.chip.on .chip-free{color:var(--accent)}
 
 .cal{border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:10px 10px 12px;box-shadow:var(--shadow)}
 .cal-nav{display:flex;align-items:center;gap:6px;margin-bottom:10px}
@@ -164,7 +179,7 @@ button,input{font-family:inherit}
 .cell.none{border-color:var(--line);background:var(--busy-bg)}
 .cell.none .dot{background:var(--line)}
 .cell.blank{color:transparent;cursor:default}
-.cell.sel{border:2px solid var(--accent);background:var(--accent);color:var(--on-accent);cursor:pointer}
+.cell.sel{border-color:var(--accent);background:var(--accent);color:var(--on-accent);cursor:pointer;box-shadow:inset 0 0 0 1px var(--accent)}
 .cell.sel .n{font-weight:600}
 .cell.sel .dot{background:var(--on-accent)}
 .legend{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:11px;font-size:11.5px;color:var(--muted)}
@@ -195,7 +210,7 @@ button,input{font-family:inherit}
   border:1px dashed var(--line);background:transparent;color:var(--faint);
   cursor:not-allowed;text-decoration:line-through;font-weight:400;box-shadow:none;
 }
-.slot.sel{border:2px solid var(--accent);background:var(--accent);color:var(--on-accent);font-weight:600;text-decoration:none}
+.slot.sel{border-color:var(--accent);background:var(--accent);color:var(--on-accent);font-weight:600;text-decoration:none;box-shadow:inset 0 0 0 1px var(--accent)}
 
 /* крок 5 — дані */
 .fields{display:flex;flex-direction:column;gap:14px}
@@ -250,7 +265,7 @@ button,input{font-family:inherit}
 }
 .again:hover{border-color:var(--accent);background:var(--surface)}
 
-.sig{padding:16px;text-align:center;font-size:11.5px;color:var(--muted)}
+.sig{padding:16px;text-align:center;font-size:11.5px;color:var(--muted);border-top:1px solid var(--line)}
 
 /* десктоп: воронка стає карткою по центру */
 @media (min-width:1000px){
