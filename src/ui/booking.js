@@ -6,13 +6,12 @@
 // не губиться на кожному кліку.
 
 import { nextDays, countFree, bestDayIndex, dayKey, monthGrid, monthIndex, isWorkday } from "../core/schedule.js";
-import { shortDate, relDayLabel, relLongDayLabel, monthTitle, freeLabel, plural, WEEKDAY_HEAD } from "../core/format.js";
+import { shortDate, relDayLabel, monthTitle, freeLabel, plural, MONTH_FULL, WEEKDAY_HEAD } from "../core/format.js";
 import { normalizeName, normalizePhone } from "../core/validate.js";
 
-/** На скільки днів уперед відкритий запис. */
-const DAYS_AHEAD = 30;
-/** Скільки днів-ярликів показувати над календарем. */
-const QUICK_DAYS = 3;
+/** На скільки днів уперед відкритий запис. Три місяці — щоб при щільному
+    записі було куди гортати, а не впертись у край вікна. */
+const DAYS_AHEAD = 90;
 
 const TICK = '<svg class="tick-sm" width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.5 8.5l3.5 3.5 7.5-8" stroke="var(--free)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const CHEV = '<svg class="chev" width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 6l5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -188,25 +187,55 @@ export function mountBooking(root, business, adapter) {
   }
 
   /* ── крок 3: день ────────────────────────────────────────────────────── */
-  // Ярлики ведуть на найближчі дні, де СПРАВДІ є вільний час, і одразу
-  // кажуть скільки його. Мертвих кнопок тут не буває.
+  // Три ярлики: сьогодні, завтра і стрибок на наступний місяць. Під кожним —
+  // скільки там вільного, щоб кнопка казала правду ще до натискання.
+  function monthOf(day) {
+    return monthIndex(day.date.getFullYear(), day.date.getMonth());
+  }
+
   function paintQuick() {
     const box = $("quick");
     box.textContent = "";
+    const chips = [];
 
-    const free = days.filter((d) => d.free > 0).slice(0, QUICK_DAYS);
-    box.hidden = free.length === 0;
+    for (const [i, label] of [[0, "сьогодні"], [1, "завтра"]]) {
+      const day = days[i];
+      if (!day) continue;
+      chips.push({
+        label,
+        sub: day.free ? freeLabel(day.free) : "немає",
+        day,
+        active: state.key === day.key,
+      });
+    }
 
-    for (const day of free) {
+    // Наступний місяць, у якому взагалі є вільний час.
+    const thisMonth = monthOf(days[0]);
+    const first = days.find((d) => monthOf(d) > thisMonth && d.free > 0);
+    if (first) {
+      const month = monthOf(first);
+      const n = days.filter((d) => monthOf(d) === month && d.free > 0).length;
+      chips.push({
+        label: MONTH_FULL[first.date.getMonth()],
+        sub: `${n} ${plural(n, "день", "дні", "днів")}`,
+        day: first,
+        active: monthOf(current()) === month,
+      });
+    }
+
+    box.hidden = chips.length === 0;
+
+    for (const c of chips) {
       const b = document.createElement("button");
       b.type = "button";
-      b.className = `chip${state.key === day.key ? " on" : ""}`;
-      b.dataset.k = `chip-${day.key}`;
+      b.className = `chip${c.active ? " on" : ""}`;
+      b.dataset.k = `chip-${c.label}`;
+      b.disabled = c.day.free === 0;
       b.innerHTML = '<b class="chip-day"></b><span class="chip-free"></span>';
-      b.querySelector(".chip-day").textContent = relLongDayLabel(day.date, today);
-      b.querySelector(".chip-free").textContent = freeLabel(day.free);
-      b.setAttribute("aria-label", `${shortDate(day.date)} — ${freeLabel(day.free)}`);
-      b.onclick = () => pickDay(day);
+      b.querySelector(".chip-day").textContent = c.label;
+      b.querySelector(".chip-free").textContent = c.sub;
+      b.setAttribute("aria-label", `${c.label}, ${shortDate(c.day.date)} — ${c.sub}`);
+      if (!b.disabled) b.onclick = () => pickDay(c.day);
       box.append(b);
     }
   }
@@ -256,7 +285,7 @@ export function mountBooking(root, business, adapter) {
       b.disabled = kind !== "free";
       b.setAttribute("aria-pressed", String(sel));
       b.title = !day
-        ? `запис відкритий на ${DAYS_AHEAD} днів уперед`
+        ? `запис відкритий на ${DAYS_AHEAD} ${plural(DAYS_AHEAD, "день", "дні", "днів")} уперед`
         : day.free === 0
           ? (day.closed ? "вихідний" : "на цей день вільного часу немає")
           : freeLabel(day.free);
