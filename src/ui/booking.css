@@ -39,6 +39,8 @@
   --ring:rgba(15,92,116,.30);
 }
 
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 *{box-sizing:border-box}
 /* .err і .done задають display, тому без цього прихований блок усе одно видно */
 [hidden]{display:none!important}
@@ -93,10 +95,18 @@ button,input{font-family:inherit}
   100%{box-shadow:0 0 0 0 rgba(0,0,0,0)}
 }
 .num{
-  flex:none;width:24px;height:24px;border-radius:50%;
+  flex:none;width:26px;height:26px;border-radius:50%;
   background:var(--accent);color:var(--on-accent);
-  font-family:Oswald,sans-serif;font-weight:600;font-size:13px;
+  font-family:Oswald,sans-serif;font-weight:600;font-size:13px;line-height:1;
   display:flex;align-items:center;justify-content:center;
+  transition:background .3s ease;
+}
+.num svg{display:block}
+.num.ok{background:var(--free);animation:tick-pop .34s cubic-bezier(.2,.9,.3,1.2)}
+@keyframes tick-pop{
+  0%{transform:scale(.55)}
+  55%{transform:scale(1.14)}
+  100%{transform:scale(1)}
 }
 .step.active .num{animation:step-pulse 2.6s ease-out infinite}
 .num.ok{background:var(--free)}
@@ -219,6 +229,7 @@ button,input{font-family:inherit}
 }
 .count.zero{color:var(--muted);background:var(--busy-bg)}
 .slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(82px,1fr));gap:8px}
+.empty{grid-column:1/-1;margin:0;padding:14px 2px;color:var(--muted);font-size:13.5px;line-height:1.4}
 .slot{
   min-height:46px;padding:10px 4px;border-radius:10px;
   font-family:Oswald,sans-serif;font-size:16px;font-weight:500;letter-spacing:.4px;

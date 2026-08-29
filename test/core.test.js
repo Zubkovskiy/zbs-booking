@@ -327,19 +327,19 @@ test("relLongDayLabel лишає «сьогодні» і «завтра», ре�
 
 /* ── супровід кроками ───────────────────────────────────────────────── */
 
-test("веде на перший невиконаний крок, а не на перший підряд", () => {
-  // Пост і день підставлені одразу, тому після вибору послуги
-  // супровід має перестрибнути на «Час», а не тупцювати на другому кроці.
-  const base = { service: false, unit: true, day: true, time: false, contact: false };
-  assert.deepEqual(stepStates(base), ["active", "done", "done", "todo", "todo"]);
-  assert.equal(activeStep(stepStates(base)), 0);
+test("супровід іде кроками підряд і жодного не перестрибує", () => {
+  // Нічого не заповнюється за людину, тому фокус рухається 1 → 2 → 3 → 4 → 5.
+  // Саме через підставлені відповіді два кроки колись пролітали повз.
+  const filled = { service: false, unit: false, day: false, time: false, contact: false };
+  const keys = ["service", "unit", "day", "time", "contact"];
 
-  const withService = { ...base, service: true };
-  assert.deepEqual(stepStates(withService), ["done", "done", "done", "active", "todo"]);
-  assert.equal(activeStep(stepStates(withService)), 3);
+  for (let i = 0; i < keys.length; i++) {
+    assert.equal(activeStep(stepStates(filled)), i, `на кроці ${i + 1} має вести саме туди`);
+    assert.equal(stepStates(filled)[i], "active");
+    filled[keys[i]] = true;
+  }
 
-  const withTime = { ...withService, time: true };
-  assert.equal(activeStep(stepStates(withTime)), 4);
+  assert.deepEqual(stepStates(filled), ["done", "done", "done", "done", "done"]);
 });
 
 test("коли все заповнено — активного кроку немає, лишається кнопка", () => {

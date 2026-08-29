@@ -16,7 +16,9 @@ const DAYS_AHEAD = 90;
 
 const TICK = '<svg class="tick-sm" width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.5 8.5l3.5 3.5 7.5-8" stroke="var(--free)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const CHEV = '<svg class="chev" width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 6l5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-const NUM_TICK = '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.5 8.5l3.5 3.5 7.5-8" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+// Контур навмисно зміщений під центр кола: канонічний шлях галочки
+// «важчий» унизу зліва і в кружку виглядає зсунутим.
+const NUM_TICK = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8.6l3.4 3.4L13.2 5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const BIG_TICK = '<svg width="22" height="22" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.5 8.5l3.5 3.5 7.5-8" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 const OPT_MARKUP =
@@ -39,7 +41,7 @@ export function mountBooking(root, business, adapter) {
   const state = {
     svc: null,
     svcOpen: true,   // відкритий, доки нічого не обрано: перший екран одразу показує вибір
-    unit: 0,
+    unit: null,
     key: null,
     view: null,      // {y, m} — який місяць показує календар
     time: null,
@@ -59,22 +61,31 @@ export function mountBooking(root, business, adapter) {
 
     for (const [i, date] of nextDays(today, DAYS_AHEAD).entries()) {
       const closed = !isWorkday(date, business.workdays);
-      const slots = closed ? [] : await adapter.slots(date, state.unit);
+      // Поки пост не обрано, показуємо наявність за першим — інакше нема з чого
+      // намалювати календар. Щойно пост обрано, все перераховується під нього.
+      const slots = closed ? [] : await adapter.slots(date, state.unit ?? 0);
       const day = { i, date, key: dayKey(date), closed, slots, free: countFree(slots) };
       days.push(day);
       byKey.set(day.key, day);
     }
 
-    const pick = days[bestDayIndex(days.map((d) => d.free))];
-    state.key = pick.key;
-    state.time = null;
-    state.view = { y: pick.date.getFullYear(), m: pick.date.getMonth() };
+    // Обраний раніше день лишаємо, якщо він і далі вільний. Інакше знімаємо
+    // вибір, а не підставляємо інший — це вибір людини, не наш.
+    const kept = state.key ? byKey.get(state.key) : null;
+    if (!kept || kept.free === 0) {
+      state.key = null;
+      state.time = null;
+    } else if (state.time && !kept.slots.some((sl) => sl.time === state.time && sl.free)) {
+      state.time = null;
+    }
+
+    const focus = kept ?? days[bestDayIndex(days.map((d) => d.free))];
+    state.view = { y: focus.date.getFullYear(), m: focus.date.getMonth() };
   }
 
-  const current = () => byKey.get(state.key) ?? days[0];
+  const current = () => (state.key ? byKey.get(state.key) : null);
 
   function pickDay(day) {
-    touched.day = true;
     state.key = day.key;
     state.time = null;
     state.view = { y: day.date.getFullYear(), m: day.date.getMonth() };
@@ -171,10 +182,9 @@ export function mountBooking(root, business, adapter) {
       card.querySelector(".t-note").textContent = u.note ?? "";
       card.querySelector(".price").remove();
       card.onclick = async () => {
-        if (state.unit === i) return;
-        touched.unit = true;
+        const changed = state.unit !== i;
         state.unit = i;
-        await loadDays();       // у іншого поста свій розклад
+        if (changed) await loadDays();   // у іншого поста свій розклад
         paint();
       };
       unitCards.push(card);
@@ -223,7 +233,7 @@ export function mountBooking(root, business, adapter) {
         label: MONTH_FULL[first.date.getMonth()],
         sub: freeDaysLabel(n),
         day: first,
-        active: monthOf(current()) === month,
+        active: !!current() && monthOf(current()) === month,
       });
     }
 
@@ -314,8 +324,18 @@ export function mountBooking(root, business, adapter) {
     const day = current();
     const box = $("slots");
     box.textContent = "";
-
     const counter = $("p-time");
+
+    if (!day) {
+      counter.className = "count zero";
+      counter.textContent = "спершу день";
+      const empty = document.createElement("p");
+      empty.className = "empty";
+      empty.textContent = "Оберіть день у календарі — тут з'являться вільні години.";
+      box.append(empty);
+      return;
+    }
+
     counter.className = `count${day.free ? "" : " zero"}`;
     counter.textContent = `${day.free ? freeLabel(day.free) : busyReason(day.closed)} · ${relDayLabel(day.date, today)}`;
 
@@ -343,23 +363,29 @@ export function mountBooking(root, business, adapter) {
   function paintFoot() {
     const day = current();
     const svc = state.svc === null ? null : business.services[state.svc];
-    const unit = business.units[state.unit];
-    const ready = !!svc && !!state.time;
+    const unit = state.unit === null ? null : business.units[state.unit];
+    const ready = !!svc && !!unit && !!day && !!state.time;
 
-    $("p-service").textContent = svc ? svc.name : "оберіть";
-    $("p-service").className = `pick${svc ? " on" : ""}`;
-    $("p-unit").textContent = unit.name;
-    $("p-day").textContent = relDayLabel(day.date, today);
+    const mark = (id, text, filled) => {
+      $(id).textContent = text;
+      $(id).className = `pick${filled ? " on" : ""}`;
+    };
+    mark("p-service", svc ? svc.name : "оберіть", !!svc);
+    mark("p-unit", unit ? unit.name : "оберіть", !!unit);
+    mark("p-day", day ? relDayLabel(day.date, today) : "оберіть", !!day);
 
     const typed = $("nm").value.trim();
-    $("p-name").textContent = typed || "заповніть";
-    $("p-name").className = `pick${typed ? " on" : ""}`;
+    mark("p-name", typed || "заповніть", !!typed);
 
     $("sum").textContent = !svc
-      ? "Оберіть послугу, щоб побачити вільний час."
-      : !state.time
-        ? "Оберіть час — і можна записуватись."
-        : `${svc.name} · ${shortDate(day.date)} о ${state.time} · ${unit.name}`;
+      ? "Оберіть послугу, щоб побачити ціну й вільний час."
+      : !unit
+        ? "Оберіть пост."
+        : !day
+          ? "Оберіть день."
+          : !state.time
+            ? "Оберіть час — і можна записуватись."
+            : `${svc.name} · ${shortDate(day.date)} о ${state.time} · ${unit.name}`;
 
     $("go").disabled = !ready || state.sending;
     $("go").textContent = state.sending ? "Записуємо…" : "Записатись";
@@ -370,9 +396,6 @@ export function mountBooking(root, business, adapter) {
   const calm = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   let lastActive = -1;
   let settled = false;   // на першій відмальовці нікуди не веземо
-  // Кроки 2 і 3 виконані ще до дотику. Поки людина їх не чіпала, під ними
-  // висить пояснення, чому там уже стоїть галочка.
-  const touched = { unit: false, day: false };
 
   /** Доводимо до кроку, тільки якщо його не видно. Смикати екран не можна. */
   function reveal(el) {
@@ -385,7 +408,7 @@ export function mountBooking(root, business, adapter) {
   function paintGuide() {
     const states = stepStates({
       service: state.svc !== null,
-      unit: true,   // підставлений одразу
+      unit: state.unit !== null,
       day: !!state.key,
       time: !!state.time,
       contact: normalizeName($("nm").value).ok && normalizePhone($("ph").value).ok,
@@ -408,8 +431,7 @@ export function mountBooking(root, business, adapter) {
       // Текст ставимо лише коли він змінився, інакше анімація перезапускається
       // на кожній відмальовці й підказка блимає.
       const hint = el.querySelector(".hint");
-      const prefilled = (i === 1 && !touched.unit) || (i === 2 && !touched.day);
-      const text = st === "active" || prefilled ? STEP_HINT[i] : "";
+      const text = st === "active" ? STEP_HINT[i] : "";
       if (hint.textContent !== text) hint.textContent = text;
     });
 
