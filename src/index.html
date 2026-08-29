@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}}</title>
+<meta name="description" content="{{DESCRIPTION}}">
+<meta name="robots" content="{{ROBOTS}}">
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600&family=Commissioner:wght@400;500;600;700&display=swap">
+<style>{{CSS}}</style>
+</head>
+<body>
+{{RIBBON}}
+<div class="wrap">
+
+  <header class="head">
+    <div class="eyebrow" id="b-kind"></div>
+    <h1 id="b-name"></h1>
+    <div class="kind" id="b-tag"></div>
+    <div class="meta">
+      <span><i class="dot"></i><span id="b-open"></span></span>
+      <span id="b-addr"></span>
+    </div>
+  </header>
+
+  <main class="card" id="flow">
+    <section class="step">
+      <div class="step-h"><span class="num">1</span><h2>Послуга</h2><span class="pick" id="p-service">оберіть</span></div>
+      <div class="opts" id="services"></div>
+    </section>
+
+    <section class="step">
+      <div class="step-h"><span class="num">2</span><h2 id="unit-title"></h2><span class="pick" id="p-unit"></span></div>
+      <div class="opts" id="units"></div>
+    </section>
+
+    <section class="step">
+      <div class="step-h"><span class="num">3</span><h2>День</h2><span class="pick" id="p-day">оберіть</span></div>
+      <div class="days" id="days"></div>
+    </section>
+
+    <section class="step">
+      <div class="step-h"><span class="num">4</span><h2>Час</h2><span class="pick" id="p-time"></span></div>
+      <div class="slots" id="slots"></div>
+      <div class="legend">
+        <span><i class="lg-free"></i>вільно</span>
+        <span><i class="lg-busy"></i>зайнято</span>
+      </div>
+    </section>
+
+    <section class="step">
+      <div class="step-h"><span class="num">5</span><h2>Контакт</h2></div>
+      <div class="fields">
+        <div>
+          <label for="nm">Як до вас звертатись</label>
+          <input id="nm" placeholder="Ім'я" autocomplete="given-name" enterkeyhint="next">
+          <span class="err" id="nm-err" role="alert" hidden></span>
+        </div>
+        <div>
+          <label for="ph">Телефон для підтвердження</label>
+          <input id="ph" type="tel" inputmode="tel" placeholder="067 111 22 33" autocomplete="tel" enterkeyhint="done">
+          <span class="err" id="ph-err" role="alert" hidden></span>
+        </div>
+      </div>
+    </section>
+
+    <div class="foot">
+      <div class="sum" id="sum">Оберіть послугу, щоб побачити вільний час.</div>
+      <button class="go" id="go" disabled>Записатись</button>
+      <div class="note">Два поля. Без реєстрації, без пароля, без капчі.</div>
+    </div>
+  </main>
+
+  <section class="pitch">
+    <h3>Що тут працює</h3>
+    <ul>
+      <li><b>Вільний час видно одразу</b> — клієнт не вгадує і не дзвонить, щоб спитати.</li>
+      <li><b>Зайняте не можна обрати</b> — подвійного бронювання не буває.</li>
+      <li><b>Підтвердження йде миттєво</b> — клієнту, адміністратору й у нагадування за добу.</li>
+      <li><b>Два поля</b> — ім'я і телефон. Кожне зайве поле це втрачені заявки.</li>
+      <li><b>Відкривається за посиланням з Instagram</b> — без застосунку.</li>
+    </ul>
+    <div class="sig" id="sig"></div>
+  </section>
+
+</div>
+<script type="module">{{JS}}</script>
+</body>
+</html>
