@@ -5,6 +5,7 @@ import { dayKey, hashPercent, buildSlots, countFree, nextDays, bestDayIndex, mon
 import { plural, shortDate, dayLabel, relDayLabel, relLongDayLabel, longDate, monthTitle, freeLabel, freeDaysLabel, busyReason } from "../src/core/format.js";
 import { normalizePhone, prettyPhone, normalizeName } from "../src/core/validate.js";
 import { clientConfirmation, adminAlert, reminderAt, buildAll } from "../src/core/messages.js";
+import { stepStates, activeStep, STEP_HINT } from "../src/core/guide.js";
 
 const HOURS = { from: 9, to: 12, stepMin: 60 };
 const BIZ = { name: "Мега-Сервіс", address: "вул. Москаленка, 20" };
@@ -322,4 +323,45 @@ test("relLongDayLabel лишає «сьогодні» і «завтра», ре�
   assert.equal(relLongDayLabel(new Date(2026, 7, 30), now), "сьогодні");
   assert.equal(relLongDayLabel(new Date(2026, 7, 31), now), "завтра");
   assert.equal(relLongDayLabel(new Date(2026, 8, 2), now), "2 вересня");
+});
+
+/* ── супровід кроками ───────────────────────────────────────────────── */
+
+test("веде на перший невиконаний крок, а не на перший підряд", () => {
+  // Пост і день підставлені одразу, тому після вибору послуги
+  // супровід має перестрибнути на «Час», а не тупцювати на другому кроці.
+  const base = { service: false, unit: true, day: true, time: false, contact: false };
+  assert.deepEqual(stepStates(base), ["active", "done", "done", "todo", "todo"]);
+  assert.equal(activeStep(stepStates(base)), 0);
+
+  const withService = { ...base, service: true };
+  assert.deepEqual(stepStates(withService), ["done", "done", "done", "active", "todo"]);
+  assert.equal(activeStep(stepStates(withService)), 3);
+
+  const withTime = { ...withService, time: true };
+  assert.equal(activeStep(stepStates(withTime)), 4);
+});
+
+test("коли все заповнено — активного кроку немає, лишається кнопка", () => {
+  const all = { service: true, unit: true, day: true, time: true, contact: true };
+  const states = stepStates(all);
+  assert.deepEqual(states, ["done", "done", "done", "done", "done"]);
+  assert.equal(activeStep(states), -1);
+});
+
+test("активний крок завжди рівно один", () => {
+  for (const service of [true, false]) {
+    for (const time of [true, false]) {
+      for (const contact of [true, false]) {
+        const states = stepStates({ service, unit: true, day: true, time, contact });
+        assert.equal(states.length, 5);
+        assert.ok(states.filter((s) => s === "active").length <= 1, "двох активних бути не може");
+      }
+    }
+  }
+});
+
+test("на кожен крок є своя підказка", () => {
+  assert.equal(STEP_HINT.length, 5);
+  for (const h of STEP_HINT) assert.ok(h.length > 10, `підказка надто коротка: ${h}`);
 });

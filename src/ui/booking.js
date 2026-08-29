@@ -8,6 +8,7 @@
 import { nextDays, countFree, bestDayIndex, dayKey, monthGrid, monthIndex, isWorkday } from "../core/schedule.js";
 import { shortDate, relDayLabel, monthTitle, freeLabel, freeDaysLabel, busyReason, plural, MONTH_FULL, WEEKDAY_HEAD } from "../core/format.js";
 import { normalizeName, normalizePhone } from "../core/validate.js";
+import { stepStates, activeStep, STEP_HINT } from "../core/guide.js";
 
 /** На скільки днів уперед відкритий запис. Три місяці — щоб при щільному
     записі було куди гортати, а не впертись у край вікна. */
@@ -15,6 +16,7 @@ const DAYS_AHEAD = 90;
 
 const TICK = '<svg class="tick-sm" width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.5 8.5l3.5 3.5 7.5-8" stroke="var(--free)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const CHEV = '<svg class="chev" width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 6l5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const NUM_TICK = '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.5 8.5l3.5 3.5 7.5-8" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const BIG_TICK = '<svg width="22" height="22" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.5 8.5l3.5 3.5 7.5-8" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 const OPT_MARKUP =
@@ -72,6 +74,7 @@ export function mountBooking(root, business, adapter) {
   const current = () => byKey.get(state.key) ?? days[0];
 
   function pickDay(day) {
+    touched.day = true;
     state.key = day.key;
     state.time = null;
     state.view = { y: day.date.getFullYear(), m: day.date.getMonth() };
@@ -169,6 +172,7 @@ export function mountBooking(root, business, adapter) {
       card.querySelector(".price").remove();
       card.onclick = async () => {
         if (state.unit === i) return;
+        touched.unit = true;
         state.unit = i;
         await loadDays();       // у іншого поста свій розклад
         paint();
@@ -361,6 +365,60 @@ export function mountBooking(root, business, adapter) {
     $("go").textContent = state.sending ? "Записуємо…" : "Записатись";
   }
 
+  /* ── супровід кроками ────────────────────────────────────────────────── */
+  const stepEls = [...root.querySelectorAll(".step[data-step]")];
+  const calm = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let lastActive = -1;
+  let settled = false;   // на першій відмальовці нікуди не веземо
+  // Кроки 2 і 3 виконані ще до дотику. Поки людина їх не чіпала, під ними
+  // висить пояснення, чому там уже стоїть галочка.
+  const touched = { unit: false, day: false };
+
+  /** Доводимо до кроку, тільки якщо його не видно. Смикати екран не можна. */
+  function reveal(el) {
+    if (calm) return;
+    const r = el.getBoundingClientRect();
+    if (r.top >= 0 && r.bottom <= window.innerHeight) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  function paintGuide() {
+    const states = stepStates({
+      service: state.svc !== null,
+      unit: true,   // підставлений одразу
+      day: !!state.key,
+      time: !!state.time,
+      contact: normalizeName($("nm").value).ok && normalizePhone($("ph").value).ok,
+    });
+
+    states.forEach((st, i) => {
+      const el = stepEls[i];
+      if (!el) return;
+      el.classList.toggle("active", st === "active");
+      el.classList.toggle("done", st === "done");
+      if (st === "active") el.setAttribute("aria-current", "step");
+      else el.removeAttribute("aria-current");
+
+      const num = el.querySelector(".num");
+      num.classList.toggle("ok", st === "done");
+      const want = st === "done" ? NUM_TICK : String(i + 1);
+      if (num.innerHTML !== want) num.innerHTML = want;
+      num.setAttribute("aria-label", st === "done" ? `Крок ${i + 1}, виконано` : `Крок ${i + 1}`);
+
+      // Текст ставимо лише коли він змінився, інакше анімація перезапускається
+      // на кожній відмальовці й підказка блимає.
+      const hint = el.querySelector(".hint");
+      const prefilled = (i === 1 && !touched.unit) || (i === 2 && !touched.day);
+      const text = st === "active" || prefilled ? STEP_HINT[i] : "";
+      if (hint.textContent !== text) hint.textContent = text;
+    });
+
+    const now = activeStep(states);
+    if (settled && now !== lastActive && now !== -1) reveal(stepEls[now]);
+    lastActive = now;
+    settled = true;
+  }
+
   function paint() {
     // Сітки перемальовуються, тому фокус із клавіатури треба повернути на
     // ту саму кнопку, інакше він падає на початок сторінки.
@@ -372,6 +430,7 @@ export function mountBooking(root, business, adapter) {
     paintCalendar();
     paintSlots();
     paintFoot();
+    paintGuide();
 
     if (held) {
       const back = root.querySelector(`[data-k="${held}"]`);
@@ -397,8 +456,12 @@ export function mountBooking(root, business, adapter) {
   $("nm").oninput = () => {
     clearError($("nm"), $("nm-err"));
     paintFoot();
+    paintGuide();
   };
-  $("ph").oninput = () => clearError($("ph"), $("ph-err"));
+  $("ph").oninput = () => {
+    clearError($("ph"), $("ph-err"));
+    paintGuide();
+  };
 
   /* ── відправлення ────────────────────────────────────────────────────── */
   $("go").onclick = async () => {

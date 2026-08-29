@@ -10,6 +10,7 @@
   --shadow:0 1px 2px rgba(0,0,0,.45);
   --shadow-lg:0 10px 24px rgba(0,0,0,.5);
   --shadow-cta:0 4px 14px rgba(95,182,208,.22);
+  --ring:rgba(95,182,208,.38);
 }
 @media (prefers-color-scheme:light){
   :root:not([data-theme="dark"]){
@@ -22,6 +23,7 @@
     --shadow:0 1px 2px rgba(19,26,31,.06);
     --shadow-lg:0 10px 24px rgba(12,45,60,.13);
     --shadow-cta:0 4px 14px rgba(15,92,116,.26);
+    --ring:rgba(15,92,116,.30);
   }
 }
 :root[data-theme="light"]{
@@ -34,6 +36,7 @@
   --shadow:0 1px 2px rgba(19,26,31,.06);
   --shadow-lg:0 10px 24px rgba(12,45,60,.13);
   --shadow-cta:0 4px 14px rgba(15,92,116,.26);
+  --ring:rgba(15,92,116,.30);
 }
 
 *{box-sizing:border-box}
@@ -69,13 +72,34 @@ button,input{font-family:inherit}
 /* крок */
 .step{padding:20px 16px 0}
 .step:first-child{padding-top:18px}
-.step-h{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+/* Супровід: підсвічуємо заголовок поточного кроку, пройдені позначаємо
+   галочкою. Нічого не приглушуємо — текст має лишатись читабельним. */
+.step-h{
+  display:flex;align-items:center;gap:10px;margin-bottom:10px;
+  padding:5px 7px;margin-left:-7px;border-radius:9px;transition:background .3s ease;
+}
+.step.active .step-h{background:var(--sel)}
+.hint{
+  margin:-4px 0 10px 34px;font-size:13px;line-height:1.35;color:var(--accent);
+  animation:hint-in .3s ease both;
+}
+.hint:empty{display:none}
+/* Пояснення під уже виконаним кроком не має кричати — воно довідкове. */
+.step.done .hint{color:var(--muted)}
+@keyframes hint-in{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
+@keyframes step-pulse{
+  0%{box-shadow:0 0 0 0 var(--ring)}
+  70%{box-shadow:0 0 0 9px rgba(0,0,0,0)}
+  100%{box-shadow:0 0 0 0 rgba(0,0,0,0)}
+}
 .num{
   flex:none;width:24px;height:24px;border-radius:50%;
   background:var(--accent);color:var(--on-accent);
   font-family:Oswald,sans-serif;font-weight:600;font-size:13px;
   display:flex;align-items:center;justify-content:center;
 }
+.step.active .num{animation:step-pulse 2.6s ease-out infinite}
+.num.ok{background:var(--free)}
 .step-h h2{font-weight:500;font-size:17px;letter-spacing:.3px}
 .pick{
   margin-left:auto;font-size:13px;text-align:right;max-width:54%;
