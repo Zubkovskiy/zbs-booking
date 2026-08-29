@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { dayKey, hashPercent, buildSlots, countFree, nextDays, bestDayIndex } from "../src/core/schedule.js";
-import { plural, shortDate, dayLabel } from "../src/core/format.js";
+import { dayKey, hashPercent, buildSlots, countFree, nextDays, bestDayIndex, monthGrid, monthIndex } from "../src/core/schedule.js";
+import { plural, shortDate, dayLabel, relDayLabel, monthTitle, freeLabel } from "../src/core/format.js";
 import { normalizePhone, prettyPhone, normalizeName } from "../src/core/validate.js";
 import { clientConfirmation, adminAlert, reminderAt, buildAll } from "../src/core/messages.js";
 
@@ -179,4 +179,96 @@ test("buildAll дає рівно три повідомлення в правил
   assert.equal(all[0].when, "одразу");
   assert.equal(all[1].when, "одразу");
   assert.ok(all[2].when instanceof Date, "нагадування має конкретний час");
+});
+
+/* ── календар ───────────────────────────────────────────────────────── */
+
+test("monthGrid: тиждень починається з понеділка, спереду рівно стільки порожніх, скільки треба", () => {
+  // 1 серпня 2026 — субота, тобто п'ята колонка. Перед нею 5 заповнювачів.
+  const cells = monthGrid(2026, 7);
+  assert.equal(cells.filter((c) => c.blank).length, 5);
+  assert.equal(cells.length, 5 + 31);
+
+  const first = cells[5];
+  assert.equal(first.blank, false);
+  assert.equal(first.day, 1);
+  assert.equal(first.date.getDate(), 1);
+  assert.equal(first.date.getMonth(), 7);
+});
+
+test("monthGrid позначає вихідні й дає рівно стільки днів, скільки в місяці", () => {
+  // лютий 2028 — високосний, 29 днів
+  assert.equal(monthGrid(2028, 1).filter((c) => !c.blank).length, 29);
+
+  const cells = monthGrid(2026, 7).filter((c) => !c.blank);
+  const weekend = cells.filter((c) => c.weekend).map((c) => c.day);
+  assert.ok(weekend.includes(1), "1 серпня — субота");
+  assert.ok(weekend.includes(2), "2 серпня — неділя");
+  assert.ok(!weekend.includes(3), "3 серпня — понеділок");
+});
+
+test("monthIndex дозволяє порівнювати місяці одним числом", () => {
+  assert.ok(monthIndex(2026, 11) < monthIndex(2027, 0));
+  assert.equal(monthIndex(2027, 0) - monthIndex(2026, 11), 1);
+});
+
+/* ── підписи ────────────────────────────────────────────────────────── */
+
+test("relDayLabel: далі за завтра показуємо дату, а не день тижня", () => {
+  const now = new Date(2026, 7, 29);
+  assert.equal(relDayLabel(new Date(2026, 7, 29), now), "сьогодні");
+  assert.equal(relDayLabel(new Date(2026, 7, 30), now), "завтра");
+  assert.equal(relDayLabel(new Date(2026, 7, 31), now), "31 сер");
+});
+
+test("monthTitle і freeLabel говорять українською", () => {
+  assert.equal(monthTitle(2026, 7), "серпень 2026");
+  assert.equal(freeLabel(1), "1 вільний");
+  assert.equal(freeLabel(3), "3 вільні");
+  assert.equal(freeLabel(5), "5 вільних");
+  assert.equal(freeLabel(11), "11 вільних");
+});
+
+/* ── текст повідомлень не має мовчки поїхати ────────────────────────── */
+
+test("розбивка на частини не змінила жодного символу того, що йде клієнту", () => {
+  const all = buildAll(BIZ, BOOKING);
+
+  assert.equal(
+    all[0].body,
+    [
+      "Мега-Сервіс",
+      "Вас записано: Комп'ютерна діагностика",
+      "31 сер, 11:00",
+      "вул. Москаленка, 20",
+      "Щоб скасувати або перенести — просто відповідайте на це повідомлення.",
+    ].join("\n"),
+  );
+
+  assert.equal(
+    all[1].body,
+    ["Новий запис", "Богдан · +380 67 111 22 33", "Комп'ютерна діагностика", "31 сер, 11:00 · Пост 1 · Андрій"].join("\n"),
+  );
+
+  assert.equal(
+    all[2].body,
+    [
+      "Нагадуємо: завтра о 11:00 чекаємо вас у Мега-Сервіс.",
+      "вул. Москаленка, 20",
+      "Щось змінилось? Відповідайте на це повідомлення.",
+    ].join("\n"),
+  );
+});
+
+test("у кожного повідомлення є частини, з яких демо малює бабл", () => {
+  for (const m of buildAll(BIZ, BOOKING)) {
+    assert.ok(m.parts.who, "має бути підпис, кому це йде");
+    assert.ok(m.parts.sender, "має бути відправник");
+    assert.equal(m.parts.avatar.length, 1, "аватар — одна літера");
+    assert.ok(m.parts.title.length > 3);
+    assert.ok(Array.isArray(m.parts.lines) && m.parts.lines.length > 0);
+    // Усе, що показує бабл, має бути і в тексті, який реально надсилається.
+    assert.ok(m.body.includes(m.parts.title));
+    for (const line of m.parts.lines) assert.ok(m.body.includes(line), `рядок загубився: ${line}`);
+  }
 });

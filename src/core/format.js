@@ -2,6 +2,12 @@
 
 export const WEEKDAY_SHORT = ["Нд", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
 export const MONTH_SHORT = ["січ", "лют", "бер", "кві", "тра", "чер", "лип", "сер", "вер", "жов", "лис", "гру"];
+export const MONTH_FULL = [
+  "січень", "лютий", "березень", "квітень", "травень", "червень",
+  "липень", "серпень", "вересень", "жовтень", "листопад", "грудень",
+];
+/** Заголовки колонок календаря. Тиждень починається з понеділка. */
+export const WEEKDAY_HEAD = ["пн", "вт", "ср", "чт", "пт", "сб", "нд"];
 
 /**
  * Українська множина: 1 вільне, 2 вільні, 5 вільних.
@@ -34,4 +40,20 @@ export function dayLabel(date, now = new Date()) {
   t.setDate(now.getDate() + 1);
   if (isSameDay(date, t)) return "завтра";
   return WEEKDAY_SHORT[date.getDay()];
+}
+
+/** Те саме, але далі за завтра показуємо дату, а не день тижня: «2 вер». */
+export function relDayLabel(date, now = new Date()) {
+  const near = dayLabel(date, now);
+  return near === "сьогодні" || near === "завтра" ? near : shortDate(date);
+}
+
+/** «серпень 2026» — заголовок місяця в календарі. */
+export function monthTitle(year, month) {
+  return `${MONTH_FULL[month]} ${year}`;
+}
+
+/** «5 вільних» — з правильним відмінком. */
+export function freeLabel(n) {
+  return `${n} ${plural(n, "вільний", "вільні", "вільних")}`;
 }

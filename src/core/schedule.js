@@ -82,6 +82,31 @@ export function countFree(slots) {
   return slots.reduce((n, s) => n + (s.free ? 1 : 0), 0);
 }
 
+/** Порядковий номер місяця від нуля — щоб порівнювати місяці одним числом. */
+export function monthIndex(year, month) {
+  return year * 12 + month;
+}
+
+/**
+ * Клітинки місяця для календаря: спершу порожні заповнювачі до першого
+ * понеділка, далі всі дні місяця. Рівно те, що малює сітка 7 колонок.
+ * @param {number} year
+ * @param {number} month 0–11
+ * @returns {{blank:boolean, date:Date|null, day:number, weekend:boolean}[]}
+ */
+export function monthGrid(year, month) {
+  const lead = (new Date(year, month, 1).getDay() + 6) % 7; // пн = 0
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const cells = [];
+
+  for (let i = 0; i < lead; i++) cells.push({ blank: true, date: null, day: 0, weekend: false });
+  for (let n = 1; n <= daysInMonth; n++) {
+    const date = new Date(year, month, n);
+    cells.push({ blank: false, date, day: n, weekend: (date.getDay() + 6) % 7 > 4 });
+  }
+  return cells;
+}
+
 /**
  * Який день відкрити першим. Порожнє «сьогодні» — погане перше враження,
  * тому шукаємо перший день, де реально є з чого обрати.

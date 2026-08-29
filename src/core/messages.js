@@ -3,6 +3,11 @@
 // Це найважливіший файл продукту: саме ці три повідомлення ми продаємо.
 // Демо показує їх на екрані, бекенд шле їх насправді — з одного джерела,
 // щоб клієнт ніколи не отримав не те, що бачив у демо.
+//
+// Кожне повідомлення описане ЧАСТИНАМИ (`*Parts`): заголовок, рядки, підпис.
+// Демо малює з них бабл месенджера, а `body` для бекенда збирається з тих
+// самих частин. Через це вигляд на екрані й надісланий текст не можуть
+// розійтись — міняєш частину, міняється і те, і те.
 
 import { shortDate } from "./format.js";
 import { prettyPhone } from "./validate.js";
@@ -17,34 +22,66 @@ import { prettyPhone } from "./validate.js";
  * @property {string} time    "14:30"
  */
 
+/**
+ * @typedef {Object} Parts
+ * @property {string} who     кому це йде, підпис над баблом
+ * @property {string} sender  ім'я відправника в баблі
+ * @property {string} avatar  одна літера на аватар
+ * @property {string} title   жирний перший рядок
+ * @property {string[]} lines рядки під заголовком
+ * @property {string} [foot]  дрібний підпис під рискою
+ */
+
+const join = (...lines) => lines.filter(Boolean).join("\n");
+
 /** Клієнту, одразу після запису. */
+export function clientConfirmationParts(biz, b) {
+  return {
+    who: "Клієнту в Telegram",
+    sender: biz.name,
+    avatar: biz.name.slice(0, 1),
+    title: `Вас записано: ${b.service}`,
+    lines: [`${shortDate(b.date)}, ${b.time}`, biz.address],
+    foot: "Щоб скасувати або перенести — просто відповідайте на це повідомлення.",
+  };
+}
+
 export function clientConfirmation(biz, b) {
-  return [
-    biz.name,
-    `Вас записано: ${b.service}`,
-    `${shortDate(b.date)}, ${b.time}`,
-    biz.address,
-    "Щоб скасувати або перенести — просто відповідайте на це повідомлення.",
-  ].join("\n");
+  const p = clientConfirmationParts(biz, b);
+  return join(biz.name, p.title, ...p.lines, p.foot);
 }
 
 /** Адміністратору, одразу. Усе, що треба, — без переходів кудись. */
+export function adminAlertParts(biz, b) {
+  return {
+    who: "Адміністратору",
+    sender: "Бот записів",
+    avatar: "А",
+    title: "Новий запис",
+    lines: [`${b.name} · ${prettyPhone(b.phone)}`, b.service, `${shortDate(b.date)}, ${b.time} · ${b.unit}`],
+  };
+}
+
 export function adminAlert(biz, b) {
-  return [
-    "Новий запис",
-    `${b.name} · ${prettyPhone(b.phone)}`,
-    b.service,
-    `${shortDate(b.date)}, ${b.time} · ${b.unit}`,
-  ].join("\n");
+  const p = adminAlertParts(biz, b);
+  return join(p.title, ...p.lines);
 }
 
 /** Нагадування клієнту за добу. */
+export function clientReminderParts(biz, b) {
+  return {
+    who: "Нагадування клієнту",
+    sender: biz.name,
+    avatar: biz.name.slice(0, 1),
+    title: `Нагадуємо: завтра о ${b.time} чекаємо вас у ${biz.name}.`,
+    lines: [biz.address],
+    foot: "Щось змінилось? Відповідайте на це повідомлення.",
+  };
+}
+
 export function clientReminder(biz, b) {
-  return [
-    `Нагадуємо: завтра о ${b.time} чекаємо вас у ${biz.name}.`,
-    biz.address,
-    "Щось змінилось? Відповідайте на це повідомлення.",
-  ].join("\n");
+  const p = clientReminderParts(biz, b);
+  return join(p.title, ...p.lines, p.foot);
 }
 
 /** Коли надсилати нагадування: за добу, о 10:00. */
@@ -58,8 +95,8 @@ export function reminderAt(date, hour = 10) {
 /** Усі три разом — у такому вигляді їх показує демо і шле бекенд. */
 export function buildAll(biz, b) {
   return [
-    { to: "client", channel: "telegram", when: "одразу", body: clientConfirmation(biz, b) },
-    { to: "admin", channel: "telegram", when: "одразу", body: adminAlert(biz, b) },
-    { to: "client", channel: "telegram", when: reminderAt(b.date), body: clientReminder(biz, b) },
+    { to: "client", channel: "telegram", when: "одразу", parts: clientConfirmationParts(biz, b), body: clientConfirmation(biz, b) },
+    { to: "admin", channel: "telegram", when: "одразу", parts: adminAlertParts(biz, b), body: adminAlert(biz, b) },
+    { to: "client", channel: "telegram", when: reminderAt(b.date), parts: clientReminderParts(biz, b), body: clientReminder(biz, b) },
   ];
 }
