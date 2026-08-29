@@ -156,7 +156,7 @@ export function mountBooking(root, business, adapter) {
     trigger.querySelector(".t-name").textContent = chosen ? chosen.name : "Оберіть послугу";
     trigger.querySelector(".t-note").textContent = chosen
       ? (chosen.note ?? "")
-      : `${business.services.length} ${plural(business.services.length, "послуга", "послуги", "послуг")} · ціни одразу`;
+      : `${business.services.length} ${plural(business.services.length, "послуга", "послуги", "послуг")}`;
     trigger.querySelector(".price").textContent = chosen ? (chosen.price ?? "") : "";
 
     svcWrap.classList.toggle("open", state.svcOpen);

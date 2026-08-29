@@ -80,7 +80,10 @@ button,input{font-family:inherit}
   display:flex;align-items:center;gap:10px;margin-bottom:10px;
   padding:5px 7px;margin-left:-7px;border-radius:9px;transition:background .3s ease;
 }
-.step.active .step-h{background:var(--sel)}
+.step.active .step-h{
+  background:linear-gradient(90deg,var(--sel) 0%,var(--sel) 42%,transparent 100%);
+  box-shadow:inset 2px 0 0 var(--accent);
+}
 .hint{
   margin:-4px 0 10px 34px;font-size:13px;line-height:1.35;color:var(--accent);
   animation:hint-in .3s ease both;
@@ -102,6 +105,10 @@ button,input{font-family:inherit}
   transition:background .3s ease;
 }
 .num svg{display:block}
+/* Кружок центрується по інлайн-боксу Oswald, а той має великий верхній винос,
+   тому оптично сидить вище літер. Опускаємо його на цю різницю; position, а не
+   margin, — щоб не змінювати висоту рядка й не тягнути текст за собою. */
+.num{position:relative;top:4px}
 .num.ok{background:var(--free);animation:tick-pop .34s cubic-bezier(.2,.9,.3,1.2)}
 @keyframes tick-pop{
   0%{transform:scale(.55)}
@@ -110,7 +117,7 @@ button,input{font-family:inherit}
 }
 .step.active .num{animation:step-pulse 2.6s ease-out infinite}
 .num.ok{background:var(--free)}
-.step-h h2{font-weight:500;font-size:17px;letter-spacing:.3px}
+.step-h h2{font-weight:500;font-size:17px;line-height:1.2;letter-spacing:.3px}
 .pick{
   margin-left:auto;font-size:13px;text-align:right;max-width:54%;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
