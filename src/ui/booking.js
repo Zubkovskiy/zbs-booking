@@ -97,6 +97,7 @@ export function mountBooking(root, business, adapter) {
   // Будується один раз. Список лишається в DOM і коли згорнутий — інакше
   // нема чому анімуватись, а перемальовування вбивало б перехід.
   let trigger, svcWrap;
+  let shownSvc = null;      // яку послугу тригер показує зараз
   const svcOpts = [];
 
   function buildService() {
@@ -159,6 +160,14 @@ export function mountBooking(root, business, adapter) {
       ? (chosen.note ?? "")
       : `${business.services.length} ${plural(business.services.length, "послуга", "послуги", "послуг")}`;
     trigger.querySelector(".price").textContent = chosen ? (chosen.price ?? "") : "";
+
+    // Назва підмінилась — проявляємо її, а не міняємо в одну мить.
+    if (state.svc !== shownSvc) {
+      shownSvc = state.svc;
+      trigger.classList.remove("swap");
+      void trigger.offsetWidth;          // перезапуск анімації
+      trigger.classList.add("swap");
+    }
 
     svcWrap.classList.toggle("open", state.svcOpen);
     svcOpts.forEach((opt, i) => {
@@ -443,11 +452,10 @@ export function mountBooking(root, business, adapter) {
       if (num.innerHTML !== want) num.innerHTML = want;
       num.setAttribute("aria-label", st === "done" ? `Крок ${i + 1}, виконано` : `Крок ${i + 1}`);
 
-      // Текст ставимо лише коли він змінився, інакше анімація перезапускається
-      // на кожній відмальовці й підказка блимає.
+      // Текст лишається на місці завжди — показує чи ховає його CSS. Якби ми
+      // стирали рядок, він зникав би ривком, без жодного переходу.
       const hint = el.querySelector(".hint");
-      const text = st === "active" ? STEP_HINT[i] : "";
-      if (hint.textContent !== text) hint.textContent = text;
+      if (hint.textContent !== STEP_HINT[i]) hint.textContent = STEP_HINT[i];
     });
 
     // Смужка прогресу. Назву кроку беремо з його ж заголовка — щоб не тримати

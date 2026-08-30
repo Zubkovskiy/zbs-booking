@@ -88,14 +88,14 @@ button,input{font-family:inherit}
 
 .step-h{display:flex;align-items:center;gap:10px;margin-bottom:10px}
 .step.active .step-h h2{color:var(--accent)}
+/* Підказка не зникає миттєво: текст лишається в розмітці, а згортається
+   висота. Інакше рядок пропадав ривком і тягнув за собою все, що нижче. */
 .hint{
-  margin:-4px 0 10px 36px;font-size:13px;line-height:1.35;color:var(--accent);
-  animation:hint-in .3s ease both;
+  margin:-2px 0 0 36px;font-size:13px;line-height:1.35;color:var(--accent);
+  max-height:0;opacity:0;overflow:hidden;
+  transition:max-height .32s cubic-bezier(.3,.7,.3,1),opacity .24s ease,margin-bottom .32s cubic-bezier(.3,.7,.3,1);
 }
-.hint:empty{display:none}
-/* Пояснення під уже виконаним кроком не має кричати — воно довідкове. */
-.step.done .hint{color:var(--muted)}
-@keyframes hint-in{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
+.step.active .hint{max-height:60px;opacity:1;margin-bottom:10px}
 @keyframes step-pulse{
   0%{box-shadow:0 0 0 0 var(--ring)}
   70%{box-shadow:0 0 0 9px rgba(0,0,0,0)}
@@ -152,18 +152,21 @@ button,input{font-family:inherit}
 .t-note{display:block;color:var(--muted);font-size:12.5px;line-height:1.35;margin-top:3px}
 .t-right{flex:none;align-self:center;display:flex;align-items:center;gap:9px}
 .price{font-family:Oswald,sans-serif;font-weight:500;font-size:14.5px;white-space:nowrap;color:var(--free)}
-.chev{color:var(--muted);transition:transform .18s}
+.chev{color:var(--muted);transition:transform .26s cubic-bezier(.3,.7,.25,1)}
+/* Підміна назви послуги в тригері — не миттєва, а через коротке проявлення. */
+.trigger.swap .t-txt,.trigger.swap .price{animation:fade-swap .3s ease both}
+@keyframes fade-swap{from{opacity:.2}to{opacity:1}}
 .trigger.open .chev{transform:rotate(180deg)}
 
 /* Розгортання через grid-template-rows: працює на будь-якій висоті вмісту,
    без магічних max-height. visibility прибирає згорнутий список із табуляції. */
 .svc-wrap{
   display:grid;grid-template-rows:0fr;margin-top:0;opacity:0;visibility:hidden;
-  transition:grid-template-rows .24s ease,margin-top .24s ease,opacity .18s ease,visibility 0s linear .24s;
+  transition:grid-template-rows .36s cubic-bezier(.3,.7,.25,1),margin-top .36s cubic-bezier(.3,.7,.25,1),opacity .26s ease,visibility 0s linear .36s;
 }
 .svc-wrap.open{
   grid-template-rows:1fr;margin-top:8px;opacity:1;visibility:visible;
-  transition:grid-template-rows .24s ease,margin-top .24s ease,opacity .18s ease,visibility 0s;
+  transition:grid-template-rows .36s cubic-bezier(.3,.7,.25,1),margin-top .36s cubic-bezier(.3,.7,.25,1),opacity .26s ease,visibility 0s;
 }
 .svc-clip{min-height:0;overflow:hidden}
 .svc-list{
@@ -316,13 +319,15 @@ button,input{font-family:inherit}
 }
 @keyframes big-in{from{transform:scale(.55);opacity:0}to{transform:scale(1);opacity:1}}
 @keyframes big-ring{from{transform:scale(.92);opacity:.6}to{transform:scale(2.2);opacity:0}}
+/* Галочка й текст — це одне повідомлення, тому й з'являються разом, одним
+   рухом. Домальовується всередині кола вже потім. */
 .splash-t{
   margin-top:26px;font-family:Oswald,sans-serif;font-weight:600;font-size:30px;letter-spacing:.4px;
-  animation:done-rise .5s .46s cubic-bezier(.2,.7,.3,1) both;
+  animation:done-rise .55s cubic-bezier(.16,.8,.3,1) both;
 }
 .splash-s{
   margin-top:6px;color:var(--muted);font-size:15px;
-  animation:done-rise .5s .6s cubic-bezier(.2,.7,.3,1) both;
+  animation:done-rise .55s cubic-bezier(.16,.8,.3,1) both;
 }
 
 /* екран підтвердження */
