@@ -397,12 +397,26 @@ export function mountBooking(root, business, adapter) {
   let lastActive = -1;
   let settled = false;   // на першій відмальовці нікуди не веземо
 
-  /** Доводимо до кроку, тільки якщо його не видно. Смикати екран не можна. */
+  /**
+   * Доводимо до кроку — але не одразу і не завжди.
+   *
+   * Міряти позицію в мить кліку не можна: список послуг саме згортається, і
+   * місце, у яке ми цілились би зараз, за чверть секунди поїде вгору — саме
+   * через це сторінку кидало кудись униз. Чекаємо, доки розкладка стане.
+   *
+   * Дивимось на заголовок кроку, а не на весь крок: крок із календарем вищий
+   * за екран, і вимога «видно цілком» ніколи б не виконалась.
+   */
+  let revealTimer;
   function reveal(el) {
     if (calm) return;
-    const r = el.getBoundingClientRect();
-    if (r.top >= 0 && r.bottom <= window.innerHeight) return;
-    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    clearTimeout(revealTimer);
+    revealTimer = setTimeout(() => {
+      const head = el.querySelector(".step-h") ?? el;
+      const r = head.getBoundingClientRect();
+      if (r.top >= 56 && r.bottom <= window.innerHeight - 24) return;   // уже видно
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 300);
   }
 
   function paintGuide() {

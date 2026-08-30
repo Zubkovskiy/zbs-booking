@@ -72,7 +72,7 @@ button,input{font-family:inherit}
 .wrap{max-width:720px;margin:0 auto}
 
 /* крок */
-.step{padding:20px 16px 0}
+.step{padding:20px 16px 0;scroll-margin-top:64px}
 .step:first-child{padding-top:18px}
 /* Супровід. Нічого не заливаємо кольором і нічого не приглушуємо: де людина
    зараз — видно з того, що залитий рівно один кружок, а решта попереду
@@ -287,7 +287,36 @@ button,input{font-family:inherit}
 
 /* екран підтвердження */
 .done{padding:26px 16px 8px}
-.tick{width:44px;height:44px;border-radius:50%;background:var(--free);display:flex;align-items:center;justify-content:center}
+
+/* Успіх має читатись за півсекунди, ще до того як людина почне читати текст:
+   галочка вискакує й малюється, від неї розходиться коло, далі по черзі
+   спливають заголовок і три повідомлення. Усе на CSS, без жодного скрипта;
+   при «зменшити рух» глобальне правило вимикає це цілком. */
+.tick{
+  position:relative;width:44px;height:44px;border-radius:50%;background:var(--free);
+  display:flex;align-items:center;justify-content:center;
+  animation:tick-in .5s cubic-bezier(.18,.9,.26,1.4) both;
+}
+.tick::after{
+  content:"";position:absolute;inset:0;border-radius:50%;
+  border:2px solid var(--free);animation:tick-ring 1s .18s ease-out both;
+}
+.tick svg path{
+  stroke-dasharray:17;stroke-dashoffset:17;
+  animation:tick-draw .45s .3s cubic-bezier(.6,0,.3,1) forwards;
+}
+@keyframes tick-in{from{transform:scale(.3);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes tick-ring{from{transform:scale(.85);opacity:.7}to{transform:scale(2.3);opacity:0}}
+@keyframes tick-draw{to{stroke-dashoffset:0}}
+@keyframes done-rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+
+.done h2{animation:done-rise .5s .3s cubic-bezier(.2,.7,.3,1) both}
+.done .lead{animation:done-rise .5s .42s cubic-bezier(.2,.7,.3,1) both}
+.msgs > div{animation:done-rise .55s cubic-bezier(.2,.7,.3,1) both}
+.msgs > div:nth-child(1){animation-delay:.58s}
+.msgs > div:nth-child(2){animation-delay:.76s}
+.msgs > div:nth-child(3){animation-delay:.94s}
+.again{animation:done-rise .5s 1.14s cubic-bezier(.2,.7,.3,1) both}
 .done h2{font-weight:600;font-size:24px;line-height:1.2}
 .lead{margin-top:6px;color:var(--muted);font-size:13.5px}
 .msgs{display:flex;flex-direction:column;gap:14px;margin-top:20px}
