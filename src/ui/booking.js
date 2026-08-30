@@ -435,7 +435,22 @@ export function mountBooking(root, business, adapter) {
       if (hint.textContent !== text) hint.textContent = text;
     });
 
+    // Смужка прогресу. Назву кроку беремо з його ж заголовка — щоб не тримати
+    // ті самі слова у двох місцях і щоб «Пост» брався з даних закладу.
     const now = activeStep(states);
+    const doneCount = states.filter((st) => st === "done").length;
+    $("bar").style.width = `${Math.round((doneCount / states.length) * 100)}%`;
+    $("plab").innerHTML = "";
+    if (now === -1) {
+      $("plab").textContent = "Усе заповнено — можна записуватись";
+    } else {
+      const title = stepEls[now].querySelector("h2").textContent;
+      const lead = document.createTextNode(`Крок ${now + 1} з ${states.length} · `);
+      const name = document.createElement("b");
+      name.textContent = title;
+      $("plab").append(lead, name);
+    }
+
     if (settled && now !== lastActive && now !== -1) reveal(stepEls[now]);
     lastActive = now;
     settled = true;
