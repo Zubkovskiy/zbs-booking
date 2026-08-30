@@ -7,7 +7,7 @@
 
 import { nextDays, countFree, bestDayIndex, dayKey, monthGrid, monthIndex, isWorkday } from "../core/schedule.js";
 import { shortDate, relDayLabel, monthTitle, freeLabel, freeDaysLabel, busyReason, plural, MONTH_FULL, WEEKDAY_HEAD } from "../core/format.js";
-import { normalizeName, normalizePhone } from "../core/validate.js";
+import { normalizeName, normalizePhone, prettyPhone } from "../core/validate.js";
 import { stepStates, activeStep, STEP_HINT } from "../core/guide.js";
 
 /** На скільки днів уперед відкритий запис. Три місяці — щоб при щільному
@@ -387,15 +387,29 @@ export function mountBooking(root, business, adapter) {
     const typed = $("nm").value.trim();
     mark("p-name", typed || "заповніть", !!typed);
 
-    $("sum").textContent = !svc
-      ? "Оберіть послугу, щоб побачити ціну й вільний час."
-      : !unit
-        ? "Оберіть пост."
-        : !day
-          ? "Оберіть день."
-          : !state.time
-            ? "Оберіть час — і можна записуватись."
-            : `${svc.name} · ${shortDate(day.date)} о ${state.time} · ${unit.name}`;
+    // Підсумок читається зверху вниз: спершу ХТО записується, потім НА ЩО.
+    // Так людина впізнає в ньому себе, а не лише перелік своїх кліків.
+    const sum = $("sum");
+    sum.textContent = "";
+    if (!svc) sum.textContent = "Оберіть послугу, щоб побачити ціну й вільний час.";
+    else if (!unit) sum.textContent = "Оберіть пост.";
+    else if (!day) sum.textContent = "Оберіть день.";
+    else if (!state.time) sum.textContent = "Оберіть час — і можна записуватись.";
+    else {
+      const name = normalizeName($("nm").value);
+      const phone = normalizePhone($("ph").value);
+      const who = [name.ok ? name.value : null, phone.ok ? prettyPhone(phone.value) : null].filter(Boolean);
+      if (who.length) {
+        const line = document.createElement("div");
+        line.className = "sum-who";
+        line.textContent = who.join(" · ");
+        sum.append(line);
+      }
+      const what = document.createElement("div");
+      what.className = "sum-what";
+      what.textContent = `${svc.name} · ${shortDate(day.date)} о ${state.time} · ${unit.name}`;
+      sum.append(what);
+    }
 
     $("go").disabled = !ready || state.sending;
     $("go").textContent = state.sending ? "Записуємо…" : "Записатись";
@@ -520,6 +534,7 @@ export function mountBooking(root, business, adapter) {
   };
   $("ph").oninput = () => {
     clearError($("ph"), $("ph-err"));
+    paintFoot();      // номер теж іде в підсумок, тож його треба перемалювати
     paintGuide();
   };
 
@@ -642,6 +657,20 @@ export function mountBooking(root, business, adapter) {
         f.textContent = p.foot;
         bubble.append(f);
       }
+      // Кнопки нагадування. Це малюнок повідомлення, а не робочий інтерфейс,
+      // тому спани, а не кнопки: тиснути тут нема на що.
+      if (p.buttons) {
+        const row = document.createElement("div");
+        row.className = "m-btns";
+        for (const label of p.buttons) {
+          const b = document.createElement("span");
+          b.className = "m-btn";
+          b.textContent = label;
+          row.append(b);
+        }
+        bubble.append(row);
+      }
+
       const stamp = document.createElement("div");
       stamp.className = "stamp";
       stamp.textContent = typeof m.when === "string" ? "зараз" : when;
@@ -656,7 +685,10 @@ export function mountBooking(root, business, adapter) {
     again.textContent = "Пройти ще раз";
     again.onclick = () => location.reload();
 
-    box.append(tick, h, lead, msgs, again);
+    const top = document.createElement("div");
+    top.className = "done-top";
+    top.append(tick, h, lead);
+    box.append(top, msgs, again);
     $("flow").hidden = true;
     box.hidden = false;
   }

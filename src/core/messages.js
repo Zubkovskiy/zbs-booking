@@ -30,6 +30,7 @@ import { prettyPhone } from "./validate.js";
  * @property {string} title   жирний перший рядок
  * @property {string[]} lines рядки під заголовком
  * @property {string} [foot]  дрібний підпис під рискою
+ * @property {string[]} [buttons] кнопки під повідомленням, якими клієнт відповідає боту
  */
 
 const join = (...lines) => lines.filter(Boolean).join("\n");
@@ -42,7 +43,7 @@ export function clientConfirmationParts(biz, b) {
     avatar: biz.name.slice(0, 1),
     title: `Вас записано: ${b.service}`,
     lines: [`${shortDate(b.date)}, ${b.time}`, biz.address],
-    foot: "Щоб скасувати або перенести — просто відповідайте на це повідомлення.",
+    foot: "Щоб скасувати або перенести — просто напишіть нам на це повідомлення.",
   };
 }
 
@@ -75,7 +76,10 @@ export function clientReminderParts(biz, b) {
     avatar: biz.name.slice(0, 1),
     title: `Нагадуємо: завтра о ${b.time} чекаємо вас у ${biz.name}.`,
     lines: [biz.address],
-    foot: "Щось змінилось? Відповідайте на це повідомлення.",
+    foot: "Підтвердіть, будь ласка — щоб ми не тримали час даремно.",
+    // Дві кнопки замість «відповідайте текстом»: одне торкання, і адміністратор
+    // одразу знає, чи звільняти годину.
+    buttons: ["Буду", "Не вийде"],
   };
 }
 

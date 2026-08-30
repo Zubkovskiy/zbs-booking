@@ -87,7 +87,7 @@ button,input{font-family:inherit}
 .plab b{color:var(--text);font-weight:600}
 
 .step-h{display:flex;align-items:center;gap:10px;margin-bottom:10px}
-.step.active .step-h h2{color:var(--accent)}
+
 /* Підказка не зникає миттєво: текст лишається в розмітці, а згортається
    висота. Інакше рядок пропадав ривком і тягнув за собою все, що нижче. */
 .hint{
@@ -130,7 +130,13 @@ button,input{font-family:inherit}
 }
 .step.active .num{animation:step-pulse 2.6s ease-out infinite}
 .num.ok{background:var(--free)}
-.step-h h2{font-weight:500;font-size:17px;line-height:1.2;letter-spacing:.3px}
+/* Поточний крок більший за решту, пройдений повертається до звичайного —
+   розмір сам показує, де ти. Кружок 26 px, тож рядок від цього не росте. */
+.step-h h2{
+  font-weight:500;font-size:17px;line-height:1.2;letter-spacing:.3px;
+  transition:font-size .28s cubic-bezier(.3,.7,.3,1),color .28s ease;
+}
+.step.active .step-h h2{font-size:21px}
 .pick{
   margin-left:auto;font-size:13px;text-align:right;max-width:54%;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
@@ -285,6 +291,8 @@ button,input{font-family:inherit}
 /* підсумок і кнопка */
 .foot{margin-top:22px;padding:14px 16px 18px;border-top:1px solid var(--line);background:var(--surface)}
 .sum{font-size:13px;color:var(--muted);line-height:1.4;min-height:38px}
+.sum-who{color:var(--text);font-weight:600;font-size:14.5px;margin-bottom:2px}
+.sum-what{color:var(--muted);font-size:13px}
 .go{
   margin-top:12px;width:100%;min-height:52px;padding:14px;border:1px solid transparent;border-radius:10px;
   background:var(--accent);color:var(--on-accent);
@@ -332,6 +340,7 @@ button,input{font-family:inherit}
 
 /* екран підтвердження */
 .done{padding:26px 16px 8px}
+.done-top{display:flex;flex-direction:column;align-items:center;text-align:center}
 
 /* Успіх має читатись за півсекунди, ще до того як людина почне читати текст:
    галочка вискакує й малюється, від неї розходиться коло, далі по черзі
@@ -355,8 +364,9 @@ button,input{font-family:inherit}
 @keyframes tick-draw{to{stroke-dashoffset:0}}
 @keyframes done-rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
 
-.done h2{animation:done-rise .5s .3s cubic-bezier(.2,.7,.3,1) both}
-.done .lead{animation:done-rise .5s .42s cubic-bezier(.2,.7,.3,1) both}
+/* Галочка й текст — одне повідомлення, тому проявляються разом. */
+.done h2{animation:done-rise .5s cubic-bezier(.2,.7,.3,1) both}
+.done .lead{animation:done-rise .5s cubic-bezier(.2,.7,.3,1) both}
 .msgs > div{animation:done-rise .55s cubic-bezier(.2,.7,.3,1) both}
 .msgs > div:nth-child(1){animation-delay:.58s}
 .msgs > div:nth-child(2){animation-delay:.76s}
@@ -381,6 +391,12 @@ button,input{font-family:inherit}
 .m-title{font-size:14.5px;font-weight:600;line-height:1.35}
 .m-lines{display:flex;flex-direction:column;gap:2px;margin-top:6px;font-size:13.5px;line-height:1.4}
 .m-foot{margin-top:8px;padding-top:8px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted);line-height:1.4}
+.m-btns{display:flex;gap:6px;margin-top:10px}
+.m-btn{
+  flex:1 1 0;text-align:center;padding:8px 6px;border-radius:9px;
+  border:1px solid var(--line);background:var(--bg);
+  font-size:13px;font-weight:600;color:var(--accent);
+}
 .stamp{margin-top:7px;text-align:right;font-size:11px;color:var(--muted)}
 .again{
   margin-top:24px;width:100%;min-height:46px;padding:12px;border:1px solid var(--line);border-radius:10px;
