@@ -117,11 +117,16 @@ button,input{font-family:inherit}
    тому оптично сидить вище літер. Опускаємо його на цю різницю; position, а не
    margin, — щоб не змінювати висоту рядка й не тягнути текст за собою. */
 .num{position:relative;}
-.num.ok{background:var(--free);animation:tick-pop .34s cubic-bezier(.2,.9,.3,1.2)}
+/* Раніше кружок підстрибував — на п'яти кроках поспіль це смикало око.
+   Тепер м'яко підростає, а сама галочка домальовується. */
+.num.ok{background:var(--free);animation:tick-pop .3s cubic-bezier(.22,.7,.3,1) both}
+.num.ok svg path{
+  stroke-dasharray:17;stroke-dashoffset:17;
+  animation:tick-draw .34s .06s cubic-bezier(.55,0,.25,1) forwards;
+}
 @keyframes tick-pop{
-  0%{transform:scale(.55)}
-  55%{transform:scale(1.14)}
-  100%{transform:scale(1)}
+  from{transform:scale(.82);opacity:.35}
+  to{transform:scale(1);opacity:1}
 }
 .step.active .num{animation:step-pulse 2.6s ease-out infinite}
 .num.ok{background:var(--free)}
@@ -284,6 +289,41 @@ button,input{font-family:inherit}
   cursor:pointer;box-shadow:var(--shadow-cta);transition:background .15s,color .15s,box-shadow .15s;
 }
 .go[disabled]{background:var(--busy-bg);color:var(--muted);box-shadow:none;cursor:not-allowed}
+
+/* Повноекранне «Записано» — там, де людина натиснула кнопку. */
+.splash{
+  position:fixed;inset:0;z-index:60;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:var(--bg);padding:24px;text-align:center;
+  animation:splash-in .2s ease-out both;
+}
+.splash.out{animation:splash-out .42s ease-in both}
+@keyframes splash-in{from{opacity:0}to{opacity:1}}
+@keyframes splash-out{from{opacity:1}to{opacity:0;visibility:hidden}}
+
+.big-tick{
+  position:relative;width:116px;height:116px;border-radius:50%;background:var(--free);
+  display:flex;align-items:center;justify-content:center;
+  animation:big-in .55s cubic-bezier(.16,.8,.3,1) both;
+}
+.big-tick::after{
+  content:"";position:absolute;inset:-2px;border-radius:50%;border:3px solid var(--free);
+  animation:big-ring 1.15s .16s cubic-bezier(.2,.6,.3,1) both;
+}
+.big-tick svg path{
+  stroke-dasharray:17;stroke-dashoffset:17;
+  animation:tick-draw .6s .26s cubic-bezier(.5,0,.2,1) forwards;
+}
+@keyframes big-in{from{transform:scale(.55);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes big-ring{from{transform:scale(.92);opacity:.6}to{transform:scale(2.2);opacity:0}}
+.splash-t{
+  margin-top:26px;font-family:Oswald,sans-serif;font-weight:600;font-size:30px;letter-spacing:.4px;
+  animation:done-rise .5s .46s cubic-bezier(.2,.7,.3,1) both;
+}
+.splash-s{
+  margin-top:6px;color:var(--muted);font-size:15px;
+  animation:done-rise .5s .6s cubic-bezier(.2,.7,.3,1) both;
+}
 
 /* екран підтвердження */
 .done{padding:26px 16px 8px}

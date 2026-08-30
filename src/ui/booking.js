@@ -19,6 +19,7 @@ const CHEV = '<svg class="chev" width="14" height="14" viewBox="0 0 16 16" fill=
 // Контур навмисно зміщений під центр кола: канонічний шлях галочки
 // «важчий» унизу зліва і в кружку виглядає зсунутим.
 const NUM_TICK = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8.6l3.4 3.4L13.2 5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const XL_TICK = '<svg width="58" height="58" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.5 8.5l3.5 3.5 7.5-8" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const BIG_TICK = '<svg width="22" height="22" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.5 8.5l3.5 3.5 7.5-8" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 const OPT_MARKUP =
@@ -540,14 +541,46 @@ export function mountBooking(root, business, adapter) {
         date: day.date,
         time: state.time,
       });
-      renderDone(day, res);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      celebrate(day, () => {
+        renderDone(day, res);
+        window.scrollTo({ top: 0, behavior: "auto" });
+      });
     } catch {
       state.sending = false;
       paintFoot();
       $("sum").textContent = "Не вдалось записати. Перевірте зв'язок і спробуйте ще раз.";
     }
   };
+
+  /**
+   * Повноекранне «Записано».
+   *
+   * Кнопку тиснуть унизу сторінки. Якщо малювати галочку вгорі, людина її не
+   * побачить: поки доїде — усе скінчилось. Тому святкуємо там, де вона зараз,
+   * а сторінку під сплешем перемотуємо миттєво, без плавності — її все одно
+   * не видно, зате нічого не смикається, коли сплеш іде.
+   */
+  function celebrate(day, then) {
+    if (calm) {          // просили менше руху — не влаштовуємо вистав
+      then();
+      return;
+    }
+
+    const splash = document.createElement("div");
+    splash.className = "splash";
+    splash.setAttribute("role", "status");
+    splash.innerHTML =
+      `<div class="big-tick">${XL_TICK}</div>` +
+      '<div class="splash-t">Записано</div><div class="splash-s"></div>';
+    splash.querySelector(".splash-s").textContent = `${shortDate(day.date)}, ${state.time}`;
+    document.body.append(splash);
+
+    setTimeout(() => {
+      then();
+      splash.classList.add("out");
+      setTimeout(() => splash.remove(), 420);
+    }, 1550);
+  }
 
   /* ── екран підтвердження ─────────────────────────────────────────────── */
   function renderDone(day, res) {
