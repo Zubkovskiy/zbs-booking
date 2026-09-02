@@ -11,6 +11,11 @@
   --shadow-lg:0 10px 24px rgba(0,0,0,.5);
   --shadow-cta:0 4px 14px rgba(95,182,208,.22);
   --ring:rgba(95,182,208,.38);
+
+  /* Рух. Одна крива на всю сторінку — різні прискорення в сусідніх переходах
+     і читаються як смикання. Три тривалості: дотик, зміна стану, переїзд. */
+  --ease:cubic-bezier(.32,.72,.24,1);
+  --t-tap:.13s; --t-swap:.24s; --t-move:.36s;
 }
 @media (prefers-color-scheme:light){
   :root:not([data-theme="dark"]){
@@ -39,8 +44,9 @@
   --ring:rgba(15,92,116,.30);
 }
 
-html{scroll-behavior:smooth}
-@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+/* scroll-behavior навмисно НЕ smooth: сторінку веде власна прокрутка з
+   motion.js, яка щокадру перечитує ціль. Плавність від браузера тут би з нею
+   боролась — кожен її крок ставав би окремою анімацією. */
 *{box-sizing:border-box}
 /* .err і .done задають display, тому без цього прихований блок усе одно видно */
 [hidden]{display:none!important}
@@ -81,7 +87,7 @@ button,input{font-family:inherit}
 .track{height:4px;border-radius:999px;background:var(--line);overflow:hidden}
 .track i{
   display:block;height:100%;width:0;border-radius:999px;background:var(--accent);
-  transition:width .45s cubic-bezier(.4,0,.2,1);
+  transition:width .5s var(--ease);
 }
 .plab{font-size:12.5px;color:var(--muted)}
 .plab b{color:var(--text);font-weight:600}
@@ -89,13 +95,16 @@ button,input{font-family:inherit}
 .step-h{display:flex;align-items:center;gap:10px;margin-bottom:10px}
 
 /* Підказка не зникає миттєво: текст лишається в розмітці, а згортається
-   висота. Інакше рядок пропадав ривком і тягнув за собою все, що нижче. */
+   висота. Інакше рядок пропадав ривком і тягнув за собою все, що нижче.
+   Через grid-template-rows, а не max-height: із max-height рядок з'являвся за
+   третину переходу, а зникав за останню — на зміні кроку одна підказка встигала
+   вирости раніше, ніж сусідня спадала, і сторінка гойдалась на 18 px. */
 .hint{
-  margin:-2px 0 0 36px;font-size:13px;line-height:1.35;color:var(--accent);
-  max-height:0;opacity:0;overflow:hidden;
-  transition:max-height .32s cubic-bezier(.3,.7,.3,1),opacity .24s ease,margin-bottom .32s cubic-bezier(.3,.7,.3,1);
+  display:grid;grid-template-rows:0fr;margin:-2px 0 0 36px;opacity:0;
+  transition:grid-template-rows var(--t-move) var(--ease),opacity var(--t-swap) var(--ease),margin-bottom var(--t-move) var(--ease);
 }
-.step.active .hint{max-height:60px;opacity:1;margin-bottom:10px}
+.hint span{min-height:0;overflow:hidden;font-size:13px;line-height:1.35;color:var(--accent)}
+.step.active .hint{grid-template-rows:1fr;opacity:1;margin-bottom:10px}
 @keyframes step-pulse{
   0%{box-shadow:0 0 0 0 var(--ring)}
   70%{box-shadow:0 0 0 9px rgba(0,0,0,0)}
@@ -106,7 +115,7 @@ button,input{font-family:inherit}
   background:var(--accent);color:var(--on-accent);
   font-family:Oswald,sans-serif;font-weight:600;font-size:13px;line-height:1;
   display:flex;align-items:center;justify-content:center;
-  transition:background .3s ease,color .3s ease,box-shadow .3s ease;
+  transition:background var(--t-move) var(--ease),color var(--t-move) var(--ease),box-shadow var(--t-move) var(--ease);
 }
 /* Крок попереду — порожній контур. Саме цей контраст і показує, де людина. */
 .step:not(.active):not(.done) .num{
@@ -131,12 +140,16 @@ button,input{font-family:inherit}
 .step.active .num{animation:step-pulse 2.6s ease-out infinite}
 .num.ok{background:var(--free)}
 /* Поточний крок більший за решту, пройдений повертається до звичайного —
-   розмір сам показує, де ти. Кружок 26 px, тож рядок від цього не росте. */
+   розмір сам показує, де ти.
+   Росте transform, а не font-size: розмір шрифту перебирає розкладку щокадру,
+   і заголовок на слабкому телефоні дрижить. Масштаб рахує композитор, рядок
+   при цьому лишається завширшки як був — сусідній підпис навіть не ворухнеться. */
 .step-h h2{
   font-weight:500;font-size:17px;line-height:1.2;letter-spacing:.3px;
-  transition:font-size .28s cubic-bezier(.3,.7,.3,1),color .28s ease;
+  transform-origin:left center;
+  transition:transform var(--t-move) var(--ease),color var(--t-swap) var(--ease);
 }
-.step.active .step-h h2{font-size:21px}
+.step.active .step-h h2{transform:scale(1.235)}
 .pick{
   margin-left:auto;font-size:13px;text-align:right;max-width:54%;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
@@ -144,12 +157,26 @@ button,input{font-family:inherit}
 }
 .pick.on{color:var(--text);font-weight:600}
 
+/* Дотик. Кнопка мусить відповісти в ту саму мить, коли її натиснули: інакше
+   рух, який почнеться за мить після цього, читається як самовільний.
+   Тільки transform — він нічого не перебирає в розкладці. */
+.trigger:active,.svc-opt:active,.card:active,.chip:not([disabled]):active,
+.cell.free:active,.slot:not([disabled]):active,.nav:not([disabled]):active,
+.go:not([disabled]):active,.again:active{transform:scale(.977)}
+
+@media (hover:hover){
+  .trigger:hover,.card:hover,.chip:not([disabled]):hover,
+  .slot:not([disabled]):hover,.nav:not([disabled]):hover{border-color:var(--accent)}
+  .svc-opt:hover,.cell.free:hover{background:var(--sel)}
+}
+
 /* крок 1 — послуга */
 .trigger{
   display:flex;width:100%;align-items:flex-start;justify-content:space-between;gap:12px;
   min-height:56px;padding:12px 13px;border:1px solid var(--line);border-radius:10px;
   background:var(--surface);color:var(--muted);cursor:pointer;box-shadow:var(--shadow);
-  transition:border-color .15s,box-shadow .15s;
+  transition:border-color var(--t-swap) var(--ease),box-shadow var(--t-swap) var(--ease),
+             color var(--t-swap) var(--ease),transform var(--t-tap) var(--ease);
 }
 .trigger.open{border-color:var(--accent)}
 .trigger.chosen{color:var(--text)}
@@ -158,9 +185,9 @@ button,input{font-family:inherit}
 .t-note{display:block;color:var(--muted);font-size:12.5px;line-height:1.35;margin-top:3px}
 .t-right{flex:none;align-self:center;display:flex;align-items:center;gap:9px}
 .price{font-family:Oswald,sans-serif;font-weight:500;font-size:14.5px;white-space:nowrap;color:var(--free)}
-.chev{color:var(--muted);transition:transform .26s cubic-bezier(.3,.7,.25,1)}
+.chev{color:var(--muted);transition:transform var(--t-move) var(--ease)}
 /* Підміна назви послуги в тригері — не миттєва, а через коротке проявлення. */
-.trigger.swap .t-txt,.trigger.swap .price{animation:fade-swap .3s ease both}
+.trigger.swap .t-txt,.trigger.swap .price{animation:fade-swap var(--t-swap) var(--ease) backwards}
 @keyframes fade-swap{from{opacity:.2}to{opacity:1}}
 .trigger.open .chev{transform:rotate(180deg)}
 
@@ -168,11 +195,11 @@ button,input{font-family:inherit}
    без магічних max-height. visibility прибирає згорнутий список із табуляції. */
 .svc-wrap{
   display:grid;grid-template-rows:0fr;margin-top:0;opacity:0;visibility:hidden;
-  transition:grid-template-rows .36s cubic-bezier(.3,.7,.25,1),margin-top .36s cubic-bezier(.3,.7,.25,1),opacity .26s ease,visibility 0s linear .36s;
+  transition:grid-template-rows var(--t-move) var(--ease),margin-top var(--t-move) var(--ease),opacity var(--t-swap) var(--ease),visibility 0s linear var(--t-move);
 }
 .svc-wrap.open{
   grid-template-rows:1fr;margin-top:8px;opacity:1;visibility:visible;
-  transition:grid-template-rows .36s cubic-bezier(.3,.7,.25,1),margin-top .36s cubic-bezier(.3,.7,.25,1),opacity .26s ease,visibility 0s;
+  transition:grid-template-rows var(--t-move) var(--ease),margin-top var(--t-move) var(--ease),opacity var(--t-swap) var(--ease),visibility 0s;
 }
 .svc-clip{min-height:0;overflow:hidden}
 .svc-list{
@@ -183,7 +210,8 @@ button,input{font-family:inherit}
   display:flex;width:100%;align-items:flex-start;justify-content:space-between;gap:12px;
   text-align:left;min-height:52px;padding:11px 13px;
   border:none;border-bottom:1px solid var(--line);border-left:3px solid transparent;
-  background:transparent;color:inherit;cursor:pointer;transition:background .15s;
+  background:transparent;color:inherit;cursor:pointer;
+  transition:background var(--t-swap) var(--ease),border-left-color var(--t-swap) var(--ease);
 }
 .svc-opt:last-child{border-bottom:none}
 .svc-opt.sel{border-left-color:var(--accent);background:var(--sel)}
@@ -196,7 +224,8 @@ button,input{font-family:inherit}
   text-align:left;min-height:54px;padding:11px 13px;
   border:1px solid var(--line);border-radius:10px;background:var(--surface);color:inherit;
   cursor:pointer;box-shadow:var(--shadow);
-  transition:background .15s,border-color .15s,box-shadow .15s;
+  transition:background var(--t-swap) var(--ease),border-color var(--t-swap) var(--ease),
+             box-shadow var(--t-swap) var(--ease),transform var(--t-tap) var(--ease);
 }
 .card.sel{border-color:var(--accent);background:var(--sel);box-shadow:inset 0 0 0 1px var(--accent)}
 .tick-sm{flex:none;visibility:hidden}
@@ -209,7 +238,9 @@ button,input{font-family:inherit}
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
   text-align:center;line-height:1.2;
   border:1px solid var(--line);background:var(--surface);color:var(--text);
-  cursor:pointer;transition:background .15s,border-color .15s,box-shadow .15s;
+  cursor:pointer;
+  transition:background var(--t-swap) var(--ease),border-color var(--t-swap) var(--ease),
+             box-shadow var(--t-swap) var(--ease),transform var(--t-tap) var(--ease);
 }
 .chip.on{border-color:var(--accent);background:var(--sel);box-shadow:inset 0 0 0 1px var(--accent)}
 .chip-day{font-size:13.5px;font-weight:600}
@@ -221,19 +252,30 @@ button,input{font-family:inherit}
 .nav{
   flex:none;width:44px;height:44px;display:flex;align-items:center;justify-content:center;
   border:1px solid var(--line);border-radius:10px;background:transparent;color:var(--accent);
-  cursor:pointer;transition:background .15s,color .15s;
+  cursor:pointer;
+  transition:background var(--t-swap) var(--ease),color var(--t-swap) var(--ease),
+             border-color var(--t-swap) var(--ease),transform var(--t-tap) var(--ease);
 }
 .nav[disabled]{color:var(--line);cursor:not-allowed}
 .cal-month{flex:1;text-align:center;font-family:Oswald,sans-serif;font-weight:500;font-size:16px;letter-spacing:.5px}
+.cal-month.swap{animation:fade-swap var(--t-swap) var(--ease) backwards}
 .wd{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-bottom:6px}
 .wd span{text-align:center;font-size:11px;letter-spacing:.4px;color:var(--muted)}
 .wd span.we{font-weight:600}
 .grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+/* Місяць не підміняється в одну мить, а заїжджає з того боку, куди натиснули.
+   Висоту сітки (5 рядків проти 6) у цей самий час веде motion.js — разом це
+   один рух, а не два різні. */
+.grid.in-fwd{animation:month-fwd var(--t-move) var(--ease) backwards}
+.grid.in-back{animation:month-back var(--t-move) var(--ease) backwards}
+@keyframes month-fwd{from{opacity:0;transform:translateX(15px)}to{opacity:1;transform:none}}
+@keyframes month-back{from{opacity:0;transform:translateX(-15px)}to{opacity:1;transform:none}}
 .cell{
   min-height:46px;padding:6px 2px 5px;border-radius:9px;text-align:center;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
   border:1px solid transparent;background:transparent;color:var(--faint);cursor:not-allowed;
-  transition:background .15s,border-color .15s,color .15s;
+  transition:background var(--t-swap) var(--ease),border-color var(--t-swap) var(--ease),
+             color var(--t-swap) var(--ease),transform var(--t-tap) var(--ease);
 }
 .cell .n{display:block;font-family:Oswald,sans-serif;font-weight:500;font-size:16px;line-height:1}
 .cell .dot{width:6px;height:6px;border-radius:50%;display:block;background:transparent}
@@ -264,8 +306,18 @@ button,input{font-family:inherit}
   font-family:Oswald,sans-serif;font-size:16px;font-weight:500;letter-spacing:.4px;
   border:1px solid var(--accent);background:var(--surface);color:var(--text);
   cursor:pointer;box-shadow:var(--shadow);
-  transition:background .15s,border-color .15s,box-shadow .15s;
+  transition:background var(--t-swap) var(--ease),border-color var(--t-swap) var(--ease),
+             color var(--t-swap) var(--ease),box-shadow var(--t-swap) var(--ease),
+             transform var(--t-tap) var(--ease);
 }
+/* Години заходять хвилею — так видно, що сітка з'явилась саме під обраний
+   день. Затримка обрізана: інакше останні ряди доповзали б тоді, коли людина
+   вже тицяє в перший. Заливка обраного — це вже перехід, а не поява. */
+.slots .slot,.slots .empty{
+  animation:tile-in .3s var(--ease) backwards;
+  animation-delay:calc(min(var(--i,0),11) * 24ms);
+}
+@keyframes tile-in{from{opacity:0;transform:translateY(7px) scale(.98)}to{opacity:1;transform:none}}
 .slot.busy{
   border:1px solid var(--line);background:var(--busy-bg);color:var(--faint);
   cursor:not-allowed;text-decoration:line-through;font-weight:400;box-shadow:none;
@@ -282,10 +334,14 @@ button,input{font-family:inherit}
 .fields input{
   width:100%;min-height:48px;padding:12px 13px;border:1px solid var(--line);border-radius:10px;
   background:var(--surface);color:var(--text);font-size:16px;
-  transition:border-color .15s,box-shadow .15s;
+  transition:border-color var(--t-swap) var(--ease),box-shadow var(--t-swap) var(--ease);
 }
 .fields input.bad{border:2px solid var(--err)}
-.err{display:flex;gap:6px;margin-top:6px;color:var(--err);font-size:12.5px;line-height:1.35}
+/* Помилка не вистрибує — проступає під полем разом зі своєю висотою. */
+.err{
+  display:flex;gap:6px;margin-top:6px;color:var(--err);font-size:12.5px;line-height:1.35;
+  animation:tile-in var(--t-swap) var(--ease) backwards;
+}
 .err b{font-weight:700}
 
 /* підсумок і кнопка */
@@ -297,7 +353,9 @@ button,input{font-family:inherit}
   margin-top:12px;width:100%;min-height:52px;padding:14px;border:1px solid transparent;border-radius:10px;
   background:var(--accent);color:var(--on-accent);
   font-family:Oswald,sans-serif;font-size:18px;font-weight:600;letter-spacing:.6px;
-  cursor:pointer;box-shadow:var(--shadow-cta);transition:background .15s,color .15s,box-shadow .15s;
+  cursor:pointer;box-shadow:var(--shadow-cta);
+  transition:background var(--t-swap) var(--ease),color var(--t-swap) var(--ease),
+             box-shadow var(--t-swap) var(--ease),transform var(--t-tap) var(--ease);
 }
 .go[disabled]{background:var(--busy-bg);color:var(--muted);box-shadow:none;cursor:not-allowed}
 
@@ -338,9 +396,13 @@ button,input{font-family:inherit}
   animation:done-rise .55s cubic-bezier(.16,.8,.3,1) both;
 }
 
-/* екран підтвердження */
-.done{padding:26px 16px 8px}
-.done-top{display:flex;flex-direction:column;align-items:center;text-align:center}
+/* екран підтвердження.
+   Селектори тут — тільки #done. Клас .done носить і ПРОЙДЕНИЙ КРОК воронки:
+   поки правила були на класі, кожен завершений крок міняв відступи (+14 px),
+   роздував заголовок до 24 px і програвав done-rise — тобто підстрибував рівно
+   в ту мить, коли людина щойно щось обрала. Саме це й смикало сторінку. */
+#done{padding:26px 16px 8px}
+#done .done-top{display:flex;flex-direction:column;align-items:center;text-align:center}
 
 /* Успіх має читатись за півсекунди, ще до того як людина почне читати текст:
    галочка вискакує й малюється, від неї розходиться коло, далі по черзі
@@ -365,14 +427,14 @@ button,input{font-family:inherit}
 @keyframes done-rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
 
 /* Галочка й текст — одне повідомлення, тому проявляються разом. */
-.done h2{animation:done-rise .5s cubic-bezier(.2,.7,.3,1) both}
-.done .lead{animation:done-rise .5s cubic-bezier(.2,.7,.3,1) both}
+#done h2{animation:done-rise .5s var(--ease) both}
+#done .lead{animation:done-rise .5s var(--ease) both}
 .msgs > div{animation:done-rise .55s cubic-bezier(.2,.7,.3,1) both}
 .msgs > div:nth-child(1){animation-delay:.58s}
 .msgs > div:nth-child(2){animation-delay:.76s}
 .msgs > div:nth-child(3){animation-delay:.94s}
 .again{animation:done-rise .5s 1.14s cubic-bezier(.2,.7,.3,1) both}
-.done h2{font-weight:600;font-size:24px;line-height:1.2}
+#done h2{font-weight:600;font-size:24px;line-height:1.2}
 .lead{margin-top:6px;color:var(--muted);font-size:13.5px}
 .msgs{display:flex;flex-direction:column;gap:14px;margin-top:20px}
 .msg-head{font-size:11.5px;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);margin-bottom:7px}
@@ -401,7 +463,8 @@ button,input{font-family:inherit}
 .again{
   margin-top:24px;width:100%;min-height:46px;padding:12px;border:1px solid var(--line);border-radius:10px;
   background:transparent;color:var(--text);font-size:14.5px;font-weight:600;cursor:pointer;
-  transition:background .15s,border-color .15s;
+  transition:background var(--t-swap) var(--ease),border-color var(--t-swap) var(--ease),
+             transform var(--t-tap) var(--ease);
 }
 .again:hover{border-color:var(--accent);background:var(--surface)}
 

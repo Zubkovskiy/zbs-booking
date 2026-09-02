@@ -1,14 +1,16 @@
 // Складання сторінки. Тут тільки DOM і стан екрана.
 // Усе, що можна порахувати без браузера, живе в core/ і покрите тестами.
 //
-// Блоки послуг і постів будуються ОДИН раз, далі лише синхронізуються.
-// Через це випадайка може плавно анімуватись, а фокус із клавіатури
-// не губиться на кожному кліку.
+// ЖОДЕН блок не перемальовується без потреби: послуги, пости, ярлики днів,
+// сітка календаря і плитки часу будуються один раз, далі лише синхронізуються.
+// Перемальовування вбивало кожен перехід (нова кнопка не має чому анімуватись),
+// губило фокус із клавіатури і давало ту саму смиканину, від якої все й почалось.
 
 import { nextDays, countFree, bestDayIndex, dayKey, monthGrid, monthIndex, isWorkday } from "../core/schedule.js";
 import { shortDate, relDayLabel, monthTitle, freeLabel, freeDaysLabel, busyReason, plural, MONTH_FULL, WEEKDAY_HEAD } from "../core/format.js";
 import { normalizeName, normalizePhone, prettyPhone } from "../core/validate.js";
 import { stepStates, activeStep, STEP_HINT } from "../core/guide.js";
+import { createScroller, glideToStep, morphHeight, calmMotion } from "./motion.js";
 
 /** На скільки днів уперед відкритий запис. Три місяці — щоб при щільному
     записі було куди гортати, а не впертись у край вікна. */
@@ -217,9 +219,9 @@ export function mountBooking(root, business, adapter) {
     return monthIndex(day.date.getFullYear(), day.date.getMonth());
   }
 
-  function paintQuick() {
-    const box = $("quick");
-    box.textContent = "";
+  /** Опис ярликів на цю мить. Підсвітка — окремою функцією, бо вона міняється
+      на кожен вибір дня, а самі ярлики — тільки коли міняється пост. */
+  function quickChips() {
     const chips = [];
 
     for (const [i, label] of [[0, "сьогодні"], [1, "завтра"]]) {
@@ -229,7 +231,7 @@ export function mountBooking(root, business, adapter) {
         label,
         sub: day.free ? freeLabel(day.free) : busyReason(day.closed),
         day,
-        active: state.key === day.key,
+        on: () => state.key === day.key,
       });
     }
 
@@ -243,83 +245,143 @@ export function mountBooking(root, business, adapter) {
         label: MONTH_FULL[first.date.getMonth()],
         sub: freeDaysLabel(n),
         day: first,
-        active: !!current() && monthOf(current()) === month,
+        on: () => !!current() && monthOf(current()) === month,
       });
     }
 
-    box.hidden = chips.length === 0;
-
-    for (const c of chips) {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.className = `chip${c.active ? " on" : ""}`;
-      b.dataset.k = `chip-${c.label}`;
-      b.disabled = c.day.free === 0;
-      b.innerHTML = '<b class="chip-day"></b><span class="chip-free"></span>';
-      b.querySelector(".chip-day").textContent = c.label;
-      b.querySelector(".chip-free").textContent = c.sub;
-      b.setAttribute("aria-label", `${c.label}, ${shortDate(c.day.date)} — ${c.sub}`);
-      if (!b.disabled) b.onclick = () => pickDay(c.day);
-      box.append(b);
-    }
+    return chips;
   }
 
-  function paintCalendar() {
+  let quickSig = null;    // які написи вже намальовані
+  let quickShown = [];    // [{el, chip}]
+
+  function syncQuick() {
+    const box = $("quick");
+    const chips = quickChips();
+    box.hidden = chips.length === 0;
+
+    const sig = chips.map((c) => `${c.label}|${c.sub}|${c.day.key}`).join("~");
+    if (sig !== quickSig) {
+      quickSig = sig;
+      morphHeight(box, () => {
+        box.textContent = "";
+        quickShown = chips.map((c) => {
+          const b = document.createElement("button");
+          b.type = "button";
+          b.className = "chip";
+          b.dataset.k = `chip-${c.label}`;
+          b.disabled = c.day.free === 0;
+          b.innerHTML = '<b class="chip-day"></b><span class="chip-free"></span>';
+          b.querySelector(".chip-day").textContent = c.label;
+          b.querySelector(".chip-free").textContent = c.sub;
+          b.setAttribute("aria-label", `${c.label}, ${shortDate(c.day.date)} — ${c.sub}`);
+          if (!b.disabled) b.onclick = () => pickDay(c.day);
+          box.append(b);
+          return { el: b, chip: c };
+        });
+      });
+    }
+
+    for (const { el, chip } of quickShown) el.classList.toggle("on", chip.on());
+  }
+
+  let calMonth = null;   // який місяць зараз у сітці
+  let calCells = [];     // [{el, date}] — тільки справжні дні, без порожніх
+  let headBuilt = false;
+
+  /** Сітка перебудовується ЛИШЕ при зміні місяця. Вибір дня і зміна поста —
+      це оновлення класів на тих самих кнопках, тому підсвітка перетікає
+      переходом, а не блимає новою кнопкою. */
+  function syncCalendar() {
     const { y, m } = state.view;
     const first = days[0];
     const last = days[days.length - 1];
     const shown = monthIndex(y, m);
 
-    $("month").textContent = monthTitle(y, m);
+    const title = $("month");
+    if (title.textContent !== monthTitle(y, m)) {
+      title.textContent = monthTitle(y, m);
+      title.classList.remove("swap");
+      void title.offsetWidth;
+      title.classList.add("swap");
+    }
     $("prev").disabled = shown <= monthIndex(first.date.getFullYear(), first.date.getMonth());
     $("next").disabled = shown >= monthIndex(last.date.getFullYear(), last.date.getMonth());
     $("prev").onclick = () => shiftMonth(-1);
     $("next").onclick = () => shiftMonth(1);
 
-    const head = $("wd");
-    head.textContent = "";
-    WEEKDAY_HEAD.forEach((t, i) => {
-      const s = document.createElement("span");
-      if (i > 4) s.className = "we";
-      s.textContent = t;
-      head.append(s);
-    });
+    if (!headBuilt) {
+      headBuilt = true;
+      const head = $("wd");
+      WEEKDAY_HEAD.forEach((t, i) => {
+        const s = document.createElement("span");
+        if (i > 4) s.className = "we";
+        s.textContent = t;
+        head.append(s);
+      });
+    }
 
     const grid = $("days");
-    grid.textContent = "";
-
-    for (const cell of monthGrid(y, m)) {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.innerHTML = '<span class="n"></span><span class="dot"></span>';
-
-      if (cell.blank) {
-        b.className = "cell blank";
-        b.disabled = true;
-        grid.append(b);
-        continue;
+    if (calMonth !== shown) {
+      const dir = calMonth === null ? 0 : Math.sign(shown - calMonth);
+      calMonth = shown;
+      // Місяці з різною кількістю рядків однаково високими не бувають, тому
+      // висоту доводимо переходом — інакше все під календарем підстрибує.
+      // Клітинки вдягаємо ТУТ ЖЕ, всередині: висоту міряють одразу після
+      // цього, а гола кнопка без класу .cell вдвічі нижча за справжню — сітка
+      // поїхала б у неправильний бік і клацнула назад у кінці переходу.
+      morphHeight(grid, () => {
+        grid.textContent = "";
+        calCells = [];
+        for (const cell of monthGrid(y, m)) {
+          const b = document.createElement("button");
+          b.type = "button";
+          b.innerHTML = '<span class="n"></span><span class="dot"></span>';
+          if (cell.blank) {
+            b.className = "cell blank";
+            b.disabled = true;
+          } else {
+            b.querySelector(".n").textContent = String(cell.day);
+            calCells.push({ el: b, date: cell.date });
+          }
+          grid.append(b);
+        }
+        dressCells();
+      });
+      if (dir) {
+        grid.classList.remove("in-back", "in-fwd");
+        void grid.offsetWidth;                    // перезапуск анімації
+        grid.classList.add(dir > 0 ? "in-fwd" : "in-back");
       }
+    } else {
+      dressCells();
+    }
+  }
 
-      const day = byKey.get(dayKey(cell.date));
+  /** Стан клітинок: що вільне, що обране, куди можна тицьнути. Розмір від
+      цього не залежить, тому переходи заливки грають на місці. */
+  function dressCells() {
+    for (const { el, date } of calCells) {
+      const day = byKey.get(dayKey(date));
       const kind = !day ? "out" : day.free > 0 ? "free" : "none";
       const sel = !!day && day.key === state.key;
 
-      b.className = `cell ${kind}${sel ? " sel" : ""}`;
-      b.querySelector(".n").textContent = String(cell.day);
-      b.disabled = kind !== "free";
-      b.setAttribute("aria-pressed", String(sel));
-      b.title = !day
+      el.className = `cell ${kind}${sel ? " sel" : ""}`;
+      el.disabled = kind !== "free";
+      el.setAttribute("aria-pressed", String(sel));
+      el.title = !day
         ? `запис відкритий на ${DAYS_AHEAD} ${plural(DAYS_AHEAD, "день", "дні", "днів")} уперед`
         : day.free === 0
           ? busyReason(day.closed)
           : freeLabel(day.free);
-      b.setAttribute("aria-label", `${shortDate(cell.date)} — ${b.title}`);
+      el.setAttribute("aria-label", `${shortDate(date)} — ${el.title}`);
       if (kind === "free") {
-        b.dataset.k = `cell-${day.key}`;
-        b.onclick = () => pickDay(day);
+        el.dataset.k = `cell-${day.key}`;
+        el.onclick = () => pickDay(day);
+      } else {
+        delete el.dataset.k;
+        el.onclick = null;
       }
-
-      grid.append(b);
     }
   }
 
@@ -330,42 +392,67 @@ export function mountBooking(root, business, adapter) {
   }
 
   /* ── крок 4: час ─────────────────────────────────────────────────────── */
-  function paintSlots() {
+  let slotsSig = null;   // чий саме розклад намальовано
+  let slotEls = [];      // [{el, time}]
+
+  /** Плитки перебудовуються тільки коли змінився день або пост. Натискання на
+      час — це один клас, тож обрана плитка заливається переходом, а сітка під
+      пальцем не мигає й не переїжджає. */
+  function syncSlots() {
     const day = current();
     const box = $("slots");
-    box.textContent = "";
     const counter = $("p-time");
 
     if (!day) {
       counter.className = "count zero";
       counter.textContent = "спершу день";
-      const empty = document.createElement("p");
-      empty.className = "empty";
-      empty.textContent = "Оберіть день у календарі — тут з'являться вільні години.";
-      box.append(empty);
-      return;
+    } else {
+      counter.className = `count${day.free ? "" : " zero"}`;
+      counter.textContent = `${day.free ? freeLabel(day.free) : busyReason(day.closed)} · ${relDayLabel(day.date, today)}`;
     }
 
-    counter.className = `count${day.free ? "" : " zero"}`;
-    counter.textContent = `${day.free ? freeLabel(day.free) : busyReason(day.closed)} · ${relDayLabel(day.date, today)}`;
+    const sig = day ? `${state.unit}|${day.key}|${day.slots.map((s) => s.time + (s.free ? "+" : "-")).join(",")}` : "";
+    if (sig !== slotsSig) {
+      slotsSig = sig;
+      // Порожньо → повна сітка годин — це найбільший стрибок висоти на всій
+      // сторінці. Тому висоту ведемо переходом, а плитки заходять хвилею.
+      morphHeight(box, () => {
+        box.textContent = "";
+        slotEls = [];
 
-    for (const s of day.slots) {
-      const sel = state.time === s.time && s.free;
-      const b = document.createElement("button");
-      b.type = "button";
-      b.className = `slot ${s.free ? "free" : s.why === "past" ? "past" : "busy"}${sel ? " sel" : ""}`;
-      b.textContent = s.time;
-      b.disabled = !s.free;
-      b.setAttribute("aria-pressed", String(sel));
-      b.title = s.free ? "вільно" : s.why === "past" ? "час уже минув" : "зайнято";
-      if (s.free) {
-        b.dataset.k = `slot-${s.time}`;
-        b.onclick = () => {
-          state.time = s.time;
-          paint();
-        };
-      }
-      box.append(b);
+        if (!day) {
+          const empty = document.createElement("p");
+          empty.className = "empty";
+          empty.textContent = "Оберіть день у календарі — тут з'являться вільні години.";
+          box.append(empty);
+          return;
+        }
+
+        day.slots.forEach((s, i) => {
+          const b = document.createElement("button");
+          b.type = "button";
+          b.className = `slot ${s.free ? "free" : s.why === "past" ? "past" : "busy"}`;
+          b.style.setProperty("--i", String(i));
+          b.textContent = s.time;
+          b.disabled = !s.free;
+          b.title = s.free ? "вільно" : s.why === "past" ? "час уже минув" : "зайнято";
+          if (s.free) {
+            b.dataset.k = `slot-${s.time}`;
+            b.onclick = () => {
+              state.time = s.time;
+              paint();
+            };
+            slotEls.push({ el: b, time: s.time });
+          }
+          box.append(b);
+        });
+      });
+    }
+
+    for (const { el, time } of slotEls) {
+      const sel = state.time === time;
+      el.classList.toggle("sel", sel);
+      el.setAttribute("aria-pressed", String(sel));
     }
   }
 
@@ -417,30 +504,25 @@ export function mountBooking(root, business, adapter) {
 
   /* ── супровід кроками ────────────────────────────────────────────────── */
   const stepEls = [...root.querySelectorAll(".step[data-step]")];
-  const calm = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const calm = calmMotion();
+  const scroller = createScroller();
+  const ribbon = root.querySelector(".ribbon");
+  /** Липка демо-стрічка закриває верх екрана — під неї й ведемо крок. */
+  const topInset = () => (ribbon ? ribbon.getBoundingClientRect().height : 0);
   let lastActive = -1;
   let settled = false;   // на першій відмальовці нікуди не веземо
 
   /**
-   * Доводимо до кроку — але не одразу і не завжди.
+   * Доводимо до наступного кроку.
    *
-   * Міряти позицію в мить кліку не можна: список послуг саме згортається, і
-   * місце, у яке ми цілились би зараз, за чверть секунди поїде вгору — саме
-   * через це сторінку кидало кудись униз. Чекаємо, доки розкладка стане.
-   *
-   * Дивимось на заголовок кроку, а не на весь крок: крок із календарем вищий
-   * за екран, і вимога «видно цілком» ніколи б не виконалась.
+   * Їдемо одразу, не чекаючи: затримка читалась як «сторінка задумалась».
+   * Списки в цю мить ще згортаються, тому ціль перераховується щокадру —
+   * цим займається motion.js, а куди саме ставити крок, рахує core/scroll.js:
+   * влазить — по центру вільного місця, не влазить — заголовком під стрічку.
    */
-  let revealTimer;
   function reveal(el) {
     if (calm) return;
-    clearTimeout(revealTimer);
-    revealTimer = setTimeout(() => {
-      const head = el.querySelector(".step-h") ?? el;
-      const r = head.getBoundingClientRect();
-      if (r.top >= 56 && r.bottom <= window.innerHeight - 24) return;   // уже видно
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 300);
+    glideToStep(scroller, el, topInset);
   }
 
   function paintGuide() {
@@ -468,7 +550,7 @@ export function mountBooking(root, business, adapter) {
 
       // Текст лишається на місці завжди — показує чи ховає його CSS. Якби ми
       // стирали рядок, він зникав би ривком, без жодного переходу.
-      const hint = el.querySelector(".hint");
+      const hint = el.querySelector(".hint span");
       if (hint.textContent !== STEP_HINT[i]) hint.textContent = STEP_HINT[i];
     });
 
@@ -494,21 +576,24 @@ export function mountBooking(root, business, adapter) {
   }
 
   function paint() {
-    // Сітки перемальовуються, тому фокус із клавіатури треба повернути на
-    // ту саму кнопку, інакше він падає на початок сторінки.
+    // Здебільшого кнопки переживають клік і фокус лишається сам. Але зміна
+    // дня чи місяця таки будує нові — тоді повертаємо фокус на ту саму, інакше
+    // він падає на початок сторінки.
     const held = root.activeElement && root.activeElement.dataset ? root.activeElement.dataset.k : null;
 
     syncService();
     syncUnits();
-    paintQuick();
-    paintCalendar();
-    paintSlots();
+    syncQuick();
+    syncCalendar();
+    syncSlots();
     paintFoot();
     paintGuide();
 
     if (held) {
       const back = root.querySelector(`[data-k="${held}"]`);
-      if (back) back.focus();
+      // preventScroll — інакше повернення фокусу саме й смикає сторінку, і то
+      // просто посеред нашої плавної подорожі до наступного кроку.
+      if (back && back !== root.activeElement) back.focus({ preventScroll: true });
     }
   }
 
@@ -547,7 +632,10 @@ export function mountBooking(root, business, adapter) {
     const nameOk = showError($("nm"), $("nm-err"), name);
     const phoneOk = showError($("ph"), $("ph-err"), phone);
     if (!nameOk || !phoneOk) {
-      $(nameOk ? "ph" : "nm").focus();
+      // Поле з помилкою показуємо тією ж плавною подорожжю, що й кроки, а не
+      // ривком браузера: focus() без preventScroll кидає сторінку миттєво.
+      $(nameOk ? "ph" : "nm").focus({ preventScroll: true });
+      reveal(stepEls[4]);
       return;
     }
 
@@ -584,6 +672,7 @@ export function mountBooking(root, business, adapter) {
    * не видно, зате нічого не смикається, коли сплеш іде.
    */
   function celebrate(day, then) {
+    scroller.stop();     // подорож до кроку більше не має сенсу — усе зроблено
     if (calm) {          // просили менше руху — не влаштовуємо вистав
       then();
       return;

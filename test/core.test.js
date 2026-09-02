@@ -6,6 +6,7 @@ import { plural, shortDate, dayLabel, relDayLabel, relLongDayLabel, longDate, mo
 import { normalizePhone, prettyPhone, normalizeName } from "../src/core/validate.js";
 import { clientConfirmation, adminAlert, reminderAt, buildAll } from "../src/core/messages.js";
 import { stepStates, activeStep, STEP_HINT } from "../src/core/guide.js";
+import { stepScrollTop, scrollDuration, easeInOut } from "../src/core/scroll.js";
 
 const HOURS = { from: 9, to: 12, stepMin: 60 };
 const BIZ = { name: "Мега-Сервіс", address: "вул. Москаленка, 20" };
@@ -372,4 +373,49 @@ test("нагадування дає кнопки, якими клієнт від
   // Кнопки доречні тільки там, де від клієнта чекають відповіді.
   assert.equal(confirm.parts.buttons, undefined);
   assert.equal(admin.parts.buttons, undefined);
+});
+
+/* ── прокрутка до кроку ─────────────────────────────────────────────── */
+
+const VIEW = { height: 800, inset: 40, max: 5000 };
+
+test("крок, що влазить, стає по центру вільного місця", () => {
+  // Вільне місце — 760 px під стрічкою. Крок 200 px: зверху й знизу по 280.
+  const y = stepScrollTop({ top: 1000, height: 200 }, VIEW);
+  assert.equal(y, 1000 - 40 - 280);
+});
+
+test("крок, вищий за екран, ведеться заголовком під стрічку, а не по центру", () => {
+  // Календар вищий за вікно. Центрувати його — значить сховати заголовок.
+  const y = stepScrollTop({ top: 1000, height: 900 }, VIEW);
+  assert.equal(y, 1000 - 40 - 14);
+  assert.ok(y < 1000, "заголовок має лишитись видимим");
+});
+
+test("прокрутка не вилазить за межі документа", () => {
+  assert.equal(stepScrollTop({ top: 10, height: 100 }, VIEW), 0, "вище початку не буває");
+  assert.equal(stepScrollTop({ top: 9000, height: 100 }, VIEW), 5000, "нижче кінця теж");
+  assert.equal(stepScrollTop({ top: 300, height: 100 }, { ...VIEW, max: -50 }), 0);
+});
+
+test("тривалість подорожі росте з відстанню, але має обидві межі", () => {
+  assert.equal(scrollDuration(0), 420, "коротка дорога все одно триває довше за переходи розкладки");
+  assert.ok(scrollDuration(0) > 360, "інакше останні пікселі руху нікому доводити");
+  assert.equal(scrollDuration(-400), scrollDuration(400), "напрямок не важить");
+  assert.ok(scrollDuration(400) > scrollDuration(100), "далі — довше");
+  assert.equal(scrollDuration(100000), 760, "довга дорога не стає нескінченною");
+});
+
+test("крива розгону починається в нулі, закінчується в одиниці й обрізає вихід за межі", () => {
+  assert.equal(easeInOut(0), 0);
+  assert.equal(easeInOut(1), 1);
+  assert.equal(easeInOut(0.5), 0.5, "симетрична посередині");
+  assert.equal(easeInOut(-3), 0);
+  assert.equal(easeInOut(9), 1);
+  let prev = -1;
+  for (let i = 0; i <= 20; i++) {
+    const v = easeInOut(i / 20);
+    assert.ok(v >= prev, "назад крива не йде");
+    prev = v;
+  }
 });
