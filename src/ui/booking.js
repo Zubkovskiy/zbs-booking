@@ -59,6 +59,16 @@ export function mountBooking(root, business, adapter) {
     });
   }
 
+  /** Рядок із двох частин по краях: ліворуч головне, праворуч уточнення. */
+  function edges(box, left, right) {
+    box.textContent = "";
+    const a = document.createElement("span");
+    a.textContent = left;
+    const b = document.createElement("span");
+    b.textContent = right;
+    box.append(a, b);
+  }
+
   /* ── шапка ───────────────────────────────────────────────────────────── */
   $("b-name").textContent = business.name;
   $("b-tag").textContent = business.tagline;
@@ -113,6 +123,33 @@ export function mountBooking(root, business, adapter) {
   }
 
   const current = () => (state.key ? byKey.get(state.key) : null);
+
+  /* Рух вмикається не одразу, і це найдешевший спосіб прибрати «рвано» на
+     першому розгортанні. Дві причини, обидві не залежать від нашого коду:
+     перша відмальовка будує все з нуля (три блоки поповзли б із нульової
+     висоти), а шрифти приїжджають пізніше й підміняють гарнітуру просто
+     посеред переходу — блок доїжджає не туди, звідки починав.
+     Доки не сталось і те, і те, сторінка стоїть: клас .still глушить усі
+     переходи, а grow() міняє висоту без анімації. */
+  root.documentElement.classList.add("still");
+  let painted = false;
+  let fontsOk = false;
+  let ready = false;
+
+  function arm() {
+    if (!painted || !fontsOk || ready) return;
+    ready = true;
+    root.documentElement.classList.remove("still");
+  }
+
+  (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve())
+    .then(() => { fontsOk = true; requestAnimationFrame(arm); });
+
+  /** Змінити вміст блока з переходом висоти — коли для переходу є всі умови. */
+  function grow(box, mutate) {
+    if (ready) morphHeight(box, mutate, FOLD_MS);
+    else mutate();
+  }
 
   function pickDay(day) {
     state.key = day.key;
@@ -248,7 +285,7 @@ export function mountBooking(root, business, adapter) {
     const sig = chips.map((c) => `${c.label}|${c.sub}|${c.day.key}`).join("~");
     if (sig !== quickSig) {
       quickSig = sig;
-      morphHeight(box, () => {
+      grow(box, () => {
         box.textContent = "";
         quickShown = chips.map((c) => {
           const b = document.createElement("button");
@@ -264,7 +301,7 @@ export function mountBooking(root, business, adapter) {
           box.append(b);
           return { el: b, chip: c };
         });
-      }, FOLD_MS);
+      });
     }
 
     for (const { el, chip } of quickShown) el.classList.toggle("on", chip.on());
@@ -315,7 +352,7 @@ export function mountBooking(root, business, adapter) {
       // Клітинки вдягаємо ТУТ ЖЕ, всередині: висоту міряють одразу після
       // цього, а гола кнопка без класу .cell вдвічі нижча за справжню — сітка
       // поїхала б у неправильний бік і клацнула назад у кінці переходу.
-      morphHeight(grid, () => {
+      grow(grid, () => {
         grid.textContent = "";
         calCells = [];
         for (const cell of monthGrid(y, m)) {
@@ -403,7 +440,7 @@ export function mountBooking(root, business, adapter) {
       slotsSig = sig;
       // Порожньо → повна сітка годин — це найбільший стрибок висоти на всій
       // сторінці. Тому висоту ведемо переходом, а плитки заходять хвилею.
-      morphHeight(box, () => {
+      grow(box, () => {
         box.textContent = "";
         slotEls = [];
 
@@ -434,7 +471,7 @@ export function mountBooking(root, business, adapter) {
           }
           box.append(b);
         });
-      }, FOLD_MS);
+      });
     }
 
     for (const { el, time } of slotEls) {
@@ -474,9 +511,10 @@ export function mountBooking(root, business, adapter) {
           : !day ? "Оберіть день." : "Оберіть час — і можна записуватись.";
     } else {
       sum.className = "sum";
+      // Ім'я і номер — різні речі, тому не риска посередині, а два краї рядка.
       const who = document.createElement("div");
       who.className = "sum-who";
-      fill(who, [name.ok ? name.value : "Ви", phone.ok ? prettyPhone(phone.value) : null]);
+      edges(who, name.ok ? name.value : "Ви", phone.ok ? prettyPhone(phone.value) : "");
 
       const when = document.createElement("div");
       when.className = "sum-when";
@@ -484,7 +522,7 @@ export function mountBooking(root, business, adapter) {
 
       const what = document.createElement("div");
       what.className = "sum-what";
-      fill(what, [svc.name, unit.name]);
+      edges(what, svc.name, unit.name);
 
       sum.append(who, when, what);
     }
@@ -497,11 +535,12 @@ export function mountBooking(root, business, adapter) {
   const stepEls = [...root.querySelectorAll(".step[data-step]")];
   const calm = calmMotion();
   const scroller = createScroller();
-  const ribbon = root.querySelector(".ribbon");
-  /** Липка демо-стрічка закриває верх екрана — під неї й ведемо крок. */
-  const topInset = () => (ribbon ? ribbon.getBoundingClientRect().height : 0);
+  /** Скільки зверху з'їдає липка шапка. Липкого зараз нічого немає — демо-
+      попередження переїхало вниз, — але правило прокрутки вміє з нею жити,
+      тому місце лишаємо. */
+  const topInset = () => 0;
   let lastOpen = -1;
-  let settled = false;   // на першій відмальовці нікуди не веземо
+  let settled = false;   // на першій відмальовці нікуди не веземо і нічого не анімуємо
 
   /**
    * Доводимо до наступного кроку.
@@ -609,6 +648,11 @@ export function mountBooking(root, business, adapter) {
     syncSlots();
     paintFoot();
     paintGuide();
+
+    if (!painted) {
+      painted = true;
+      requestAnimationFrame(arm);
+    }
 
     if (held) {
       const back = root.querySelector(`[data-k="${held}"]`);
@@ -823,18 +867,34 @@ export function mountBooking(root, business, adapter) {
 
       msg.append(bubble);
 
-      // Кнопки під баблом — це малюнок інлайн-клавіатури бота, а не робочий
-      // інтерфейс: тиснути тут нема на що, тому спани, а не кнопки.
+      // Інлайн-клавіатура бота. Кнопки справжні — і це навмисно: власник має
+      // сам натиснути й побачити, що відповідь клієнта це один дотик, а не
+      // дзвінок і не «передзвоніть пізніше». Нічого нікуди не йде, тому під
+      // кнопками одразу з'являється рядок про те, що станеться насправді.
       if (m.parts.buttons) {
+        msg.classList.add("has-kb");
         const kb = document.createElement("div");
         kb.className = "tg-kb";
+        const note = document.createElement("div");
+        note.className = "tg-note";
+
+        const picks = [];
         for (const label of m.parts.buttons) {
-          const b = document.createElement("span");
+          const b = document.createElement("button");
+          b.type = "button";
           b.className = "tg-btn";
           b.textContent = label;
+          b.onclick = () => {
+            for (const other of picks) other.classList.toggle("on", other === b);
+            note.textContent = label === m.parts.buttons[0]
+              ? "Готово. Адміністратор бачить підтвердження — дзвонити нікому не треба."
+              : "Готово. Година звільнилась, адміністратор уже бачить це.";
+            note.classList.add("on");
+          };
+          picks.push(b);
           kb.append(b);
         }
-        msg.append(kb);
+        msg.append(kb, note);
       }
 
       feed.append(msg);

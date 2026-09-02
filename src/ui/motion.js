@@ -73,7 +73,12 @@ export function glideToStep(scroller, el, inset) {
     const doc = document.documentElement;
     return stepScrollTop(
       { top: r.top + window.scrollY, height: r.height },
-      { height: window.innerHeight, inset: inset(), max: doc.scrollHeight - window.innerHeight },
+      {
+        height: window.innerHeight,
+        inset: inset(),
+        max: doc.scrollHeight - window.innerHeight,
+        now: window.scrollY,
+      },
     );
   });
 }
