@@ -598,10 +598,18 @@ export function mountBooking(root, business, adapter) {
       // Уперед не пускаємо, назад — будь ласка.
       btn.disabled = st === "todo" && i !== open;
 
+      // Кружок перемальовуємо, ТІЛЬКИ коли він справді міняє вигляд.
+      // Порівнювати innerHTML із рядком SVG не можна: браузер серіалізує
+      // <path/> як <path></path>, рядки ніколи не збігаються — і галочка
+      // домальовувалась заново в УСІХ пройдених кроках на кожен клік.
+      // Тепер анімується рівно та, яку щойно поставили.
       const num = el.querySelector(".num");
       num.classList.toggle("ok", st === "done");
-      const want = st === "done" ? NUM_TICK : String(i + 1);
-      if (num.innerHTML !== want) num.innerHTML = want;
+      const mark = st === "done" ? "tick" : "num";
+      if (num.dataset.mark !== mark) {
+        num.dataset.mark = mark;
+        num.innerHTML = mark === "tick" ? NUM_TICK : String(i + 1);
+      }
       num.setAttribute("aria-label", st === "done" ? `Крок ${i + 1}, виконано` : `Крок ${i + 1}`);
 
       // Текст лишається на місці завжди — показує чи ховає його CSS. Якби ми
