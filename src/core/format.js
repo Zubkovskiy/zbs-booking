@@ -13,6 +13,9 @@ export const MONTH_GEN = [
 ];
 /** Заголовки колонок календаря. Тиждень починається з понеділка. */
 export const WEEKDAY_HEAD = ["пн", "вт", "ср", "чт", "пт", "сб", "нд"];
+export const WEEKDAY_FULL = [
+  "неділя", "понеділок", "вівторок", "середа", "четвер", "п'ятниця", "субота",
+];
 
 /**
  * Українська множина: 1 вільне, 2 вільні, 5 вільних.
@@ -62,6 +65,16 @@ export function longDate(date) {
 export function relLongDayLabel(date, now = new Date()) {
   const near = dayLabel(date, now);
   return near === "сьогодні" || near === "завтра" ? near : longDate(date);
+}
+
+/**
+ * «субота, 5 вересня» — коли рядок має читатись сам по собі, без календаря
+ * поруч. Найближчі два дні лишаються словами: «сьогодні» точніше за дату.
+ */
+export function dayWithWeekday(date, now = new Date()) {
+  const near = dayLabel(date, now);
+  if (near === "сьогодні" || near === "завтра") return `${near}, ${longDate(date)}`;
+  return `${WEEKDAY_FULL[date.getDay()]}, ${longDate(date)}`;
 }
 
 /** «серпень 2026» — заголовок місяця в календарі. */

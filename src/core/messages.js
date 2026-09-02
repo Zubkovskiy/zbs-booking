@@ -88,19 +88,25 @@ export function clientReminder(biz, b) {
   return join(p.title, ...p.lines, p.foot);
 }
 
-/** Коли надсилати нагадування: за добу, о 10:00. */
-export function reminderAt(date, hour = 10) {
+/**
+ * Коли надсилати нагадування: за добу, о 10:00.
+ *
+ * Запис на завтра ламає це просте правило: «за добу о 10:00» для нього вже
+ * минуло. Тоді нагадування йде за годину після запису — інакше воно або не
+ * прийде взагалі, або стане в переписці ПЕРЕД самим записом, датою раніше.
+ */
+export function reminderAt(date, hour = 10, now = new Date()) {
   const d = new Date(date);
   d.setDate(d.getDate() - 1);
   d.setHours(hour, 0, 0, 0);
-  return d;
+  return d <= now ? new Date(now.getTime() + 60 * 60 * 1000) : d;
 }
 
 /** Усі три разом — у такому вигляді їх показує демо і шле бекенд. */
-export function buildAll(biz, b) {
+export function buildAll(biz, b, now = new Date()) {
   return [
     { to: "client", channel: "telegram", when: "одразу", parts: clientConfirmationParts(biz, b), body: clientConfirmation(biz, b) },
     { to: "admin", channel: "telegram", when: "одразу", parts: adminAlertParts(biz, b), body: adminAlert(biz, b) },
-    { to: "client", channel: "telegram", when: reminderAt(b.date), parts: clientReminderParts(biz, b), body: clientReminder(biz, b) },
+    { to: "client", channel: "telegram", when: reminderAt(b.date, 10, now), parts: clientReminderParts(biz, b), body: clientReminder(biz, b) },
   ];
 }

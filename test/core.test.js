@@ -2,10 +2,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { dayKey, hashPercent, buildSlots, countFree, nextDays, bestDayIndex, monthGrid, monthIndex } from "../src/core/schedule.js";
-import { plural, shortDate, dayLabel, relDayLabel, relLongDayLabel, longDate, monthTitle, freeLabel, freeDaysLabel, busyReason } from "../src/core/format.js";
+import { plural, shortDate, dayLabel, relDayLabel, relLongDayLabel, longDate, dayWithWeekday, monthTitle, freeLabel, freeDaysLabel, busyReason } from "../src/core/format.js";
 import { normalizePhone, prettyPhone, normalizeName } from "../src/core/validate.js";
 import { clientConfirmation, adminAlert, reminderAt, buildAll } from "../src/core/messages.js";
-import { stepStates, activeStep, STEP_HINT } from "../src/core/guide.js";
+import { stepStates, activeStep, openStep, STEP_HINT } from "../src/core/guide.js";
 import { stepScrollTop, scrollDuration, easeInOut } from "../src/core/scroll.js";
 
 const HOURS = { from: 9, to: 12, stepMin: 60 };
@@ -169,9 +169,18 @@ test("адміністратор бачить телефон у читабель
 });
 
 test("нагадування ставиться за добу на 10:00", () => {
-  const at = reminderAt(BOOKING.date);
+  const at = reminderAt(BOOKING.date, 10, new Date(2026, 7, 20, 12, 0));
   assert.equal(at.getDate(), 30);
   assert.equal(at.getHours(), 10);
+});
+
+test("на завтра нагадування не може прийти раніше за сам запис", () => {
+  // Записались сьогодні о 16:00 на завтра. «За добу о 10:00» — це вже минуло,
+  // і в переписці таке нагадування стало б ПЕРЕД записом.
+  const now = new Date(2026, 7, 30, 16, 0);
+  const at = reminderAt(new Date(2026, 7, 31), 10, now);
+  assert.ok(at > now, "нагадування завжди попереду");
+  assert.equal(at.getHours(), 17, "за годину після запису");
 });
 
 test("buildAll дає рівно три повідомлення в правильному порядку", () => {
@@ -399,17 +408,17 @@ test("прокрутка не вилазить за межі документа"
 });
 
 test("тривалість подорожі росте з відстанню, але має обидві межі", () => {
-  assert.equal(scrollDuration(0), 420, "коротка дорога все одно триває довше за переходи розкладки");
-  assert.ok(scrollDuration(0) > 360, "інакше останні пікселі руху нікому доводити");
+  assert.equal(scrollDuration(0), 600, "коротка дорога все одно триває не менше за переходи розкладки");
+  assert.ok(scrollDuration(0) >= 500, "інакше прокрутка скінчиться раніше, ніж стане розкладка");
   assert.equal(scrollDuration(-400), scrollDuration(400), "напрямок не важить");
   assert.ok(scrollDuration(400) > scrollDuration(100), "далі — довше");
-  assert.equal(scrollDuration(100000), 760, "довга дорога не стає нескінченною");
+  assert.equal(scrollDuration(100000), 1100, "довга дорога не стає нескінченною");
 });
 
 test("крива розгону починається в нулі, закінчується в одиниці й обрізає вихід за межі", () => {
   assert.equal(easeInOut(0), 0);
   assert.equal(easeInOut(1), 1);
-  assert.equal(easeInOut(0.5), 0.5, "симетрична посередині");
+  assert.ok(Math.abs(easeInOut(0.5) - 0.5) < 1e-12, "симетрична посередині");
   assert.equal(easeInOut(-3), 0);
   assert.equal(easeInOut(9), 1);
   let prev = -1;
@@ -418,4 +427,44 @@ test("крива розгону починається в нулі, закінч
     assert.ok(v >= prev, "назад крива не йде");
     prev = v;
   }
+});
+
+test("пік швидкості на кривій невисокий — саме з нього береться відчуття ривка", () => {
+  const step = 1 / 600;
+  let peak = 0;
+  for (let t = 0; t < 1; t += step) peak = Math.max(peak, (easeInOut(t + step) - easeInOut(t)) / step);
+  // Середня швидкість дороги — рівно 1. У кубічної кривої пік удвічі вищий,
+  // у цієї має бути близько π/2.
+  assert.ok(peak < 1.62, `пік ${peak.toFixed(3)} — крива стала різкішою`);
+  assert.ok(peak > 1.2, "а зовсім рівна швидкість читається як механічна");
+});
+
+/* ── згорнуті кроки ─────────────────────────────────────────────────── */
+
+test("відкритий крок — той, у якому людина зараз", () => {
+  const states = stepStates({ service: true, unit: false, day: false, time: false, contact: false });
+  assert.equal(openStep(states), 1, "перший незаповнений");
+});
+
+test("людина сама відкрила пройдений крок — відкритим лишається він", () => {
+  const states = stepStates({ service: true, unit: true, day: false, time: false, contact: false });
+  assert.equal(openStep(states, 0), 0, "натиснула «змінити» на послузі — там і стоїмо");
+  assert.equal(openStep(states, null), 2, "відпустила — ведемо далі за порядком");
+  assert.equal(openStep(states, 9), 2, "крок поза списком не рахується");
+});
+
+test("коли все заповнено, останній крок лишається відкритим", () => {
+  const all = stepStates({ service: true, unit: true, day: true, time: true, contact: true });
+  assert.equal(activeStep(all), -1);
+  // Інакше поля імені й телефона закрились би просто під пальцем — у ту саму
+  // мить, коли номер став правильним.
+  assert.equal(openStep(all), 4);
+});
+
+test("дата з днем тижня читається без календаря поруч", () => {
+  const now = new Date(2026, 8, 2);
+  assert.equal(dayWithWeekday(new Date(2026, 8, 2), now), "сьогодні, 2 вересня");
+  assert.equal(dayWithWeekday(new Date(2026, 8, 3), now), "завтра, 3 вересня");
+  assert.equal(dayWithWeekday(new Date(2026, 8, 5), now), "субота, 5 вересня");
+  assert.equal(dayWithWeekday(new Date(2026, 8, 7), now), "понеділок, 7 вересня");
 });

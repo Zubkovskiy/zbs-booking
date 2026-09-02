@@ -90,7 +90,7 @@ const running = new WeakMap();
  * @param {HTMLElement} box
  * @param {() => void} mutate що саме змінити всередині
  */
-export function morphHeight(box, mutate, ms = 340) {
+export function morphHeight(box, mutate, ms = 500) {
   if (calmMotion() || typeof box.animate !== "function") {
     mutate();
     return;
@@ -110,7 +110,7 @@ export function morphHeight(box, mutate, ms = 340) {
   box.style.overflow = "hidden";
   const anim = box.animate(
     [{ height: `${from}px` }, { height: `${to}px` }],
-    { duration: ms, easing: "cubic-bezier(.32,.72,.24,1)" },
+    { duration: ms, easing: "cubic-bezier(.37,0,.63,1)" },   // та сама крива, що й --ease
   );
   running.set(box, anim);
   const clear = () => {

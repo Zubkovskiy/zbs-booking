@@ -34,3 +34,21 @@ export function stepStates(filled) {
 export function activeStep(states) {
   return states.indexOf("active");
 }
+
+/**
+ * Який крок розгорнутий. Розгорнутий рівно один: у ньому людина працює зараз,
+ * решта згорнуті в рядок «що обрано» — саме це прибирає шум з екрана.
+ *
+ * Коли все заповнено, лишаємо відкритим останній крок, а не згортаємо все:
+ * поля імені й телефона не сміють закритись під пальцем у мить, коли номер
+ * став правильним.
+ *
+ * @param {("done"|"active"|"todo")[]} states
+ * @param {number|null} opened крок, який людина відкрила сама (кнопкою «змінити»)
+ * @returns {number} індекс розгорнутого кроку
+ */
+export function openStep(states, opened = null) {
+  if (opened !== null && opened >= 0 && opened < states.length) return opened;
+  const active = activeStep(states);
+  return active === -1 ? states.length - 1 : active;
+}
