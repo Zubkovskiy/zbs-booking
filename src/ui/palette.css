@@ -1,68 +1,51 @@
 /* ПАЛІТРА. Тільки кольори, жодних правил — щоб її можна було міняти цілком,
-   не заходячи у верстку. Темна тема основна; світла вмикається, коли система
-   прямо її просить. Світлий набір записаний двічі навмисно: один раз під
-   media-запит, другий — під ручний перемикач, і поділити їх CSS не дає.
+   не заходячи у верстку.
 
-   Індиго: холодний фіолетовий акцент на графіті з ледь помітним синім нахилом.
-   Нейтралі не сірі, а зсунуті в бік акценту — сірий «з коробки» одразу читається
-   як невибраний. Зелений лишається рівно на одному: «є вільні місця». */
+   Береться з полотна «Mega-Servis Booking»: кислотний лайм на майже чорному.
+   Темна тема тут основна й малюється першою — саме її бачить людина, яка
+   відкрила посилання з листа на телефоні.
+
+   Головне правило палітри: --acc це ЗАЛИВКА, --acc-ink це ТЕКСТ. Лайм на білому
+   не читається взагалі, тому у світлій темі текст акценту темно-зелений, а
+   заливка лишається лаймовою. Плутати їх не можна.
+
+   --ok навмисно дорівнює акценту: «є вільні місця» і «обрано» — це в цій
+   палітрі одна барва, різницю тримають заливка й контур. */
 :root{
-  --bg:#0E1017; --surface:#171B25; --text:#E9EBF5; --muted:#9BA1B8;
-  --line:#272C3B; --faint:#787E96; --cal-line:#2F3446; --cal-free:#191B33;
-  --accent:#7D77FF; --on-accent:#0A0B16;
-  --hero:#1D1B47; --hero-text:#EDEBFF; --hero-muted:#ADA7DC;
-  --sel:#232449; --busy-bg:#1E2029; --free:#4CDB9E; --free-soft:#122A20;
-  --warn:#E0A64B; --err:#FF8B80; --warn-bg:#241E12; --warn-line:#463A22; --warn-text:#E8C687;
-  --shadow:0 1px 2px rgba(0,0,0,.5);
-  --shadow-lg:0 10px 26px rgba(0,0,0,.55);
-  --shadow-cta:0 4px 16px rgba(125,119,255,.30);
-  --ring:rgba(125,119,255,.42);
-
-  /* Переписка на екрані підтвердження. Це чужий екран, тому він темніший і
-     щільніший за сторінку — але тієї ж барви: інакше друга сторінка виглядає
-     так, ніби її робив хтось інший. Месенджер тут упізнається формою — бабл із
-     хвостиком, час у куті, клавіатура бота, — а не чужим синім. */
-  --tg-bg:#141728; --tg-top:#1C2036; --tg-in:#232741; --tg-text:#EDEEF8;
-  --tg-dim:#9195B4; --tg-link:#9E99FF; --tg-line:rgba(255,255,255,.08);
-  --tg-pill:rgba(255,255,255,.08); --tg-btn:rgba(255,255,255,.10);
-  --tg-btn-hover:rgba(255,255,255,.18);
-  --tg-av1:#8F8AFF; --tg-av2:#5B52D8;
+  --bg:#0A0A0A; --card:#141414; --soft:#1C1C1C; --line:#2B2B2B;
+  --ink:#F8F8F8; --mut:#8E938A; --faint:#5E635B;
+  --acc:#A2FF01; --on-acc:#0A0A0A; --acc-ink:#A2FF01;
+  --acc-soft:rgba(162,255,1,.13); --acc-line:rgba(162,255,1,.34);
+  --ok:#A2FF01; --warn:#F0B429; --err:#FF8B80;
+  --warn-soft:rgba(240,180,41,.12); --warn-line:rgba(240,180,41,.32);
+  --ring:rgba(162,255,1,.26);
+  --shadow:0 1px 2px rgba(0,0,0,.4);
+  --shadow-lg:0 10px 28px rgba(0,0,0,.45);
+  --bar-bg:rgba(10,10,10,.82);
 }
 @media (prefers-color-scheme:light){
   :root:not([data-theme="dark"]){
-    --bg:#F2F2F8; --surface:#FFFFFF; --text:#14161F; --muted:#4D5265;
-    --line:#E0E2EC; --faint:#7C8196; --cal-line:#D9DCEC; --cal-free:#F6F5FF;
-    --accent:#4B3FD4; --on-accent:#FFFFFF;
-    --hero:#2B2570; --hero-text:#EFEDFF; --hero-muted:#B7B2E6;
-    --sel:#ECEAFE; --busy-bg:#E8EAF0; --free:#12724F; --free-soft:#E5F3EC;
-    --warn:#9A5B0B; --err:#B3261E; --warn-bg:#FBF3DC; --warn-line:#E8D7A8; --warn-text:#6B4708;
-    --shadow:0 1px 2px rgba(20,22,31,.07);
-    --shadow-lg:0 10px 26px rgba(30,28,80,.14);
-    --shadow-cta:0 4px 16px rgba(75,63,212,.28);
-    --ring:rgba(75,63,212,.32);
-
-    --tg-bg:#E9E9F4; --tg-top:#FFFFFF; --tg-in:#FFFFFF; --tg-text:#171A26;
-    --tg-dim:#767B93; --tg-link:#4B3FD4; --tg-line:#DCDCEC;
-    --tg-pill:rgba(30,28,70,.10); --tg-btn:rgba(30,28,70,.06);
-    --tg-btn-hover:rgba(30,28,70,.12);
-    --tg-av1:#7E78F0; --tg-av2:#4B3FD4;
+    --bg:#F5F6F2; --card:#FFFFFF; --soft:#EFF1EA; --line:#E2E5DA;
+    --ink:#0F0F0F; --mut:#6B7064; --faint:#9AA093;
+    --acc:#A2FF01; --on-acc:#0A0A0A; --acc-ink:#3F7D00;
+    --acc-soft:rgba(63,125,0,.09); --acc-line:rgba(63,125,0,.28);
+    --ok:#337418; --warn:#9A6B0B; --err:#B3261E;
+    --warn-soft:rgba(154,107,11,.10); --warn-line:rgba(154,107,11,.28);
+    --ring:rgba(63,125,0,.20);
+    --shadow:0 1px 2px rgba(15,20,8,.05);
+    --shadow-lg:0 8px 24px rgba(15,20,8,.08);
+    --bar-bg:rgba(245,246,242,.84);
   }
 }
 :root[data-theme="light"]{
-  --bg:#F2F2F8; --surface:#FFFFFF; --text:#14161F; --muted:#4D5265;
-  --line:#E0E2EC; --faint:#7C8196; --cal-line:#D9DCEC; --cal-free:#F6F5FF;
-  --accent:#4B3FD4; --on-accent:#FFFFFF;
-  --hero:#2B2570; --hero-text:#EFEDFF; --hero-muted:#B7B2E6;
-  --sel:#ECEAFE; --busy-bg:#E8EAF0; --free:#12724F; --free-soft:#E5F3EC;
-  --warn:#9A5B0B; --err:#B3261E; --warn-bg:#FBF3DC; --warn-line:#E8D7A8; --warn-text:#6B4708;
-  --shadow:0 1px 2px rgba(20,22,31,.07);
-  --shadow-lg:0 10px 26px rgba(30,28,80,.14);
-  --shadow-cta:0 4px 16px rgba(75,63,212,.28);
-  --ring:rgba(75,63,212,.32);
-
-  --tg-bg:#E9E9F4; --tg-top:#FFFFFF; --tg-in:#FFFFFF; --tg-text:#171A26;
-  --tg-dim:#767B93; --tg-link:#4B3FD4; --tg-line:#DCDCEC;
-  --tg-pill:rgba(30,28,70,.10); --tg-btn:rgba(30,28,70,.06);
-  --tg-btn-hover:rgba(30,28,70,.12);
-  --tg-av1:#7E78F0; --tg-av2:#4B3FD4;
+  --bg:#F5F6F2; --card:#FFFFFF; --soft:#EFF1EA; --line:#E2E5DA;
+  --ink:#0F0F0F; --mut:#6B7064; --faint:#9AA093;
+  --acc:#A2FF01; --on-acc:#0A0A0A; --acc-ink:#3F7D00;
+  --acc-soft:rgba(63,125,0,.09); --acc-line:rgba(63,125,0,.28);
+  --ok:#337418; --warn:#9A6B0B; --err:#B3261E;
+  --warn-soft:rgba(154,107,11,.10); --warn-line:rgba(154,107,11,.28);
+  --ring:rgba(63,125,0,.20);
+  --shadow:0 1px 2px rgba(15,20,8,.05);
+  --shadow-lg:0 8px 24px rgba(15,20,8,.08);
+  --bar-bg:rgba(245,246,242,.84);
 }

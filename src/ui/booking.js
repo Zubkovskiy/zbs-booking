@@ -3,11 +3,11 @@
 //
 // ЖОДЕН блок не перемальовується без потреби: послуги, пости, ярлики днів,
 // сітка календаря і плитки часу будуються один раз, далі лише синхронізуються.
-// Перемальовування вбивало кожен перехід (нова кнопка не має чому анімуватись),
-// губило фокус із клавіатури і давало ту саму смиканину, від якої все й почалось.
+// Перемальовування вбивало кожен перехід (нова кнопка не має від чого
+// анімуватись), губило фокус із клавіатури і давало смиканину на кожен клік.
 
-import { nextDays, countFree, bestDayIndex, dayKey, monthGrid, monthIndex, isWorkday } from "../core/schedule.js";
-import { shortDate, dayWithWeekday, relLongDayLabel, monthTitle, freeLabel, freeDaysLabel, busyReason, plural, MONTH_FULL, WEEKDAY_HEAD } from "../core/format.js";
+import { nextDays, countFree, bestDayIndex, dayKey, monthGrid, monthIndex, isWorkday, groupByPartOfDay, ticketCode } from "../core/schedule.js";
+import { shortDate, dayWithWeekday, relLongDayLabel, monthTitle, freeLabel, freeDaysLabel, busyReason, durationLabel, plural, MONTH_FULL, WEEKDAY_HEAD } from "../core/format.js";
 import { normalizeName, normalizePhone, prettyPhone } from "../core/validate.js";
 import { stepStates, activeStep, openStep, STEP_HINT } from "../core/guide.js";
 import { createScroller, glideToStep, morphHeight, calmMotion } from "./motion.js";
@@ -16,16 +16,11 @@ import { createScroller, glideToStep, morphHeight, calmMotion } from "./motion.j
     записі було куди гортати, а не впертись у край вікна. */
 const DAYS_AHEAD = 90;
 
-const TICK = '<svg class="tick-sm" width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.5 8.5l3.5 3.5 7.5-8" stroke="var(--free)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-// Контур навмисно зміщений під центр кола: канонічний шлях галочки
-// «важчий» унизу зліва і в кружку виглядає зсунутим.
-const NUM_TICK = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8.6l3.4 3.4L13.2 5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-const XL_TICK = '<svg width="58" height="58" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.5 8.5l3.5 3.5 7.5-8" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-const BIG_TICK = '<svg width="22" height="22" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.5 8.5l3.5 3.5 7.5-8" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-
-const OPT_MARKUP =
-  '<span class="t-txt"><span class="t-name"></span><span class="t-note"></span></span>' +
-  `<span class="t-right">${TICK}<span class="price"></span></span>`;
+const TICK = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+const NUM_TICK = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+const BIG_TICK = '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+const READ_TICK = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m1 13 4 4L14 8"/><path d="m9 13 4 4L22 8"/></svg>';
+const ANY_UNIT = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 20v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1"/><circle cx="7.5" cy="7" r="3.2"/><path d="M16 15.2a4 4 0 0 1 6 3.5V20"/><circle cx="16.8" cy="7.4" r="2.8"/></svg>';
 
 const pad = (n) => String(n).padStart(2, "0");
 
@@ -34,48 +29,26 @@ const pad = (n) => String(n).padStart(2, "0");
     переходу одна встигає, а друга ще доповзає, і блок смикається наостанок. */
 const FOLD_MS = 600;
 
+/** Ініціали для аватара поста: «Пост діагностики» → «ПД». */
+function initials(name) {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
+}
+
 export function mountBooking(root, business, adapter) {
   const $ = (id) => root.getElementById(id);
 
-  /**
-   * Рядок із кількох частин. Замість крапки між ними — тонка риска: крапка
-   * серед кирилиці читається як зайвий розділовий знак і на дрібному кеглі
-   * зливається з текстом, а вертикальна лінія просто ділить і мовчить.
-   * @param {HTMLElement} box
-   * @param {(string|null|undefined)[]} parts
-   */
-  function fill(box, parts) {
-    box.textContent = "";
-    parts.filter(Boolean).forEach((text, i) => {
-      if (i) {
-        const sep = document.createElement("i");
-        sep.className = "sep";
-        sep.setAttribute("aria-hidden", "true");
-        box.append(sep);
-      }
-      const span = document.createElement("span");
-      span.textContent = text;
-      box.append(span);
-    });
-  }
-
-  /** Рядок із двох частин по краях: ліворуч головне, праворуч уточнення. */
-  function edges(box, left, right) {
-    box.textContent = "";
-    const a = document.createElement("span");
-    a.textContent = left;
-    const b = document.createElement("span");
-    b.textContent = right;
-    box.append(a, b);
-  }
-
   /* ── шапка ───────────────────────────────────────────────────────────── */
+  $("b-logo").textContent = business.name.slice(0, 1);
   $("b-name").textContent = business.name;
-  $("b-tag").textContent = business.tagline;
-  fill($("b-where"), [business.kind, business.address]);
-  $("b-open").textContent = business.openLine ?? "";
+  $("b-sub").textContent = `${business.kind} · ${business.address}`;
   $("unit-title").textContent = business.unitTitle ?? "Майстер";
   $("sig").textContent = business.signature ?? "";
+  // Кнопка дзвінка — тільки якщо телефон справді є в профілі. Порожня кнопка
+  // «подзвонити» гірша за її відсутність.
+  if (business.phone) {
+    $("b-call").href = `tel:${business.phone.replace(/[^\d+]/g, "")}`;
+    $("b-call").hidden = false;
+  }
 
   const state = {
     svc: null,
@@ -87,7 +60,7 @@ export function mountBooking(root, business, adapter) {
     sending: false,
   };
 
-  /** Вікно запису: 30 днів із розкладом. Перебудовується при зміні поста. */
+  /** Вікно запису: 90 днів із розкладом. Перебудовується при зміні поста. */
   let days = [];
   const byKey = new Map();
 
@@ -123,14 +96,14 @@ export function mountBooking(root, business, adapter) {
   }
 
   const current = () => (state.key ? byKey.get(state.key) : null);
+  const chosenSvc = () => (state.svc === null ? null : business.services[state.svc]);
+  const chosenUnit = () => (state.unit === null ? null : business.units[state.unit]);
 
   /* Рух вмикається не одразу, і це найдешевший спосіб прибрати «рвано» на
      першому розгортанні. Дві причини, обидві не залежать від нашого коду:
-     перша відмальовка будує все з нуля (три блоки поповзли б із нульової
-     висоти), а шрифти приїжджають пізніше й підміняють гарнітуру просто
-     посеред переходу — блок доїжджає не туди, звідки починав.
-     Доки не сталось і те, і те, сторінка стоїть: клас .still глушить усі
-     переходи, а grow() міняє висоту без анімації. */
+     перша відмальовка будує все з нуля, а шрифти приїжджають пізніше й
+     підміняють гарнітуру просто посеред переходу — блок доїжджає не туди,
+     звідки починав. Доки не сталось і те, і те, сторінка стоїть. */
   root.documentElement.classList.add("still");
   let painted = false;
   let fontsOk = false;
@@ -160,23 +133,19 @@ export function mountBooking(root, business, adapter) {
   }
 
   /* ── крок 1: послуга ─────────────────────────────────────────────────── */
-  // Випадайки більше немає. Крок сам згортається, коли послугу обрано, тож
-  // тримати ще один рівень «розгорнути список» — це два однакові жести підряд
-  // і зайва анімація всередині іншої анімації.
   const svcOpts = [];
 
   function buildService() {
-    const list = document.createElement("div");
-    list.id = "svc-list";
-    list.className = "svc-list";
-    list.setAttribute("role", "listbox");
+    const box = $("services");
 
     business.services.forEach((s, i) => {
       const opt = document.createElement("button");
       opt.type = "button";
-      opt.className = "svc-opt";
+      opt.className = "opt";
       opt.setAttribute("role", "option");
-      opt.innerHTML = OPT_MARKUP;
+      opt.innerHTML =
+        '<span class="t-txt"><span class="t-name"></span><span class="t-note"></span></span>' +
+        `<span class="price"></span><span class="dot">${TICK}</span>`;
       opt.querySelector(".t-name").textContent = s.name;
       opt.querySelector(".t-note").textContent = s.note ?? "";
       opt.querySelector(".price").textContent = s.price ?? "";
@@ -186,10 +155,9 @@ export function mountBooking(root, business, adapter) {
         paint();
       };
       svcOpts.push(opt);
-      list.append(opt);
+      box.append(opt);
     });
-
-    $("services").append(list);
+    box.setAttribute("role", "listbox");
   }
 
   function syncService() {
@@ -209,11 +177,18 @@ export function mountBooking(root, business, adapter) {
     business.units.forEach((u, i) => {
       const card = document.createElement("button");
       card.type = "button";
-      card.className = "card";
-      card.innerHTML = OPT_MARKUP;
+      card.className = "opt";
+      card.innerHTML =
+        '<span class="av"></span>' +
+        '<span class="t-txt"><span class="t-name"></span><span class="t-note"></span></span>' +
+        `<span class="dot">${TICK}</span>`;
+      // «Будь-який вільний» — це не людина і не пост, тому в нього значок, а не
+      // ініціали: інакше аватар «БВ» читається як ще один майстер.
+      const av = card.querySelector(".av");
+      if (u.id === "any") av.innerHTML = ANY_UNIT;
+      else av.textContent = initials(u.name);
       card.querySelector(".t-name").textContent = u.name;
       card.querySelector(".t-note").textContent = u.note ?? "";
-      card.querySelector(".price").remove();
       card.onclick = async () => {
         const changed = state.unit !== i;
         state.unit = i;
@@ -241,8 +216,6 @@ export function mountBooking(root, business, adapter) {
     return monthIndex(day.date.getFullYear(), day.date.getMonth());
   }
 
-  /** Опис ярликів на цю мить. Підсвітка — окремою функцією, бо вона міняється
-      на кожен вибір дня, а самі ярлики — тільки коли міняється пост. */
   function quickChips() {
     const chips = [];
 
@@ -257,7 +230,6 @@ export function mountBooking(root, business, adapter) {
       });
     }
 
-    // Наступний місяць, у якому взагалі є вільний час.
     const thisMonth = monthOf(days[0]);
     const first = days.find((d) => monthOf(d) > thisMonth && d.free > 0);
     if (first) {
@@ -274,8 +246,8 @@ export function mountBooking(root, business, adapter) {
     return chips;
   }
 
-  let quickSig = null;    // які написи вже намальовані
-  let quickShown = [];    // [{el, chip}]
+  let quickSig = null;
+  let quickShown = [];
 
   function syncQuick() {
     const box = $("quick");
@@ -307,8 +279,8 @@ export function mountBooking(root, business, adapter) {
     for (const { el, chip } of quickShown) el.classList.toggle("on", chip.on());
   }
 
-  let calMonth = null;   // який місяць зараз у сітці
-  let calCells = [];     // [{el, date}] — тільки справжні дні, без порожніх
+  let calMonth = null;
+  let calCells = [];
   let headBuilt = false;
 
   /** Сітка перебудовується ЛИШЕ при зміні місяця. Вибір дня і зміна поста —
@@ -320,13 +292,7 @@ export function mountBooking(root, business, adapter) {
     const last = days[days.length - 1];
     const shown = monthIndex(y, m);
 
-    const title = $("month");
-    if (title.textContent !== monthTitle(y, m)) {
-      title.textContent = monthTitle(y, m);
-      title.classList.remove("swap");
-      void title.offsetWidth;
-      title.classList.add("swap");
-    }
+    $("month").textContent = monthTitle(y, m);
     $("prev").disabled = shown <= monthIndex(first.date.getFullYear(), first.date.getMonth());
     $("next").disabled = shown >= monthIndex(last.date.getFullYear(), last.date.getMonth());
     $("prev").onclick = () => shiftMonth(-1);
@@ -335,9 +301,8 @@ export function mountBooking(root, business, adapter) {
     if (!headBuilt) {
       headBuilt = true;
       const head = $("wd");
-      WEEKDAY_HEAD.forEach((t, i) => {
+      WEEKDAY_HEAD.forEach((t) => {
         const s = document.createElement("span");
-        if (i > 4) s.className = "we";
         s.textContent = t;
         head.append(s);
       });
@@ -347,18 +312,16 @@ export function mountBooking(root, business, adapter) {
     if (calMonth !== shown) {
       const dir = calMonth === null ? 0 : Math.sign(shown - calMonth);
       calMonth = shown;
-      // Місяці з різною кількістю рядків однаково високими не бувають, тому
-      // висоту доводимо переходом — інакше все під календарем підстрибує.
-      // Клітинки вдягаємо ТУТ ЖЕ, всередині: висоту міряють одразу після
-      // цього, а гола кнопка без класу .cell вдвічі нижча за справжню — сітка
-      // поїхала б у неправильний бік і клацнула назад у кінці переходу.
+      // Клітинки вдягаємо ТУТ ЖЕ, всередині: висоту міряють одразу після цього,
+      // а гола кнопка без класу вдвічі нижча за справжню — сітка поїхала б у
+      // неправильний бік і клацнула назад у кінці переходу.
       grow(grid, () => {
         grid.textContent = "";
         calCells = [];
         for (const cell of monthGrid(y, m)) {
           const b = document.createElement("button");
           b.type = "button";
-          b.innerHTML = '<span class="n"></span><span class="dot"></span>';
+          b.innerHTML = '<span class="n"></span><span class="dot-d"></span>';
           if (cell.blank) {
             b.className = "cell blank";
             b.disabled = true;
@@ -380,8 +343,6 @@ export function mountBooking(root, business, adapter) {
     }
   }
 
-  /** Стан клітинок: що вільне, що обране, куди можна тицьнути. Розмір від
-      цього не залежить, тому переходи заливки грають на місці. */
   function dressCells() {
     for (const { el, date } of calCells) {
       const day = byKey.get(dayKey(date));
@@ -414,8 +375,8 @@ export function mountBooking(root, business, adapter) {
   }
 
   /* ── крок 4: час ─────────────────────────────────────────────────────── */
-  let slotsSig = null;   // чий саме розклад намальовано
-  let slotEls = [];      // [{el, time}]
+  let slotsSig = null;
+  let slotEls = [];
 
   /** Плитки перебудовуються тільки коли змінився день або пост. Натискання на
       час — це один клас, тож обрана плитка заливається переходом, а сітка під
@@ -423,17 +384,10 @@ export function mountBooking(root, business, adapter) {
   function syncSlots() {
     const day = current();
     const box = $("slots");
-    // Лічильник каже, скільки годин лишилось, і живе тільки поки крок відкритий:
-    // у згорнутому рядку його місце займає обраний час.
-    const counter = $("free-count");
 
-    if (!day) {
-      counter.className = "count zero";
-      counter.textContent = "спершу день";
-    } else {
-      counter.className = `count${day.free ? "" : " zero"}`;
-      counter.textContent = day.free ? freeLabel(day.free) : busyReason(day.closed);
-    }
+    $("slots-note").textContent = day
+      ? `Тривалість візиту: ${durationLabel(business.hours.stepMin)}${business.openLine ? ` · ${business.openLine}` : ""}`
+      : "";
 
     const sig = day ? `${state.unit}|${day.key}|${day.slots.map((s) => s.time + (s.free ? "+" : "-")).join(",")}` : "";
     if (sig !== slotsSig) {
@@ -452,25 +406,39 @@ export function mountBooking(root, business, adapter) {
           return;
         }
 
-        day.slots.forEach((s, i) => {
-          const b = document.createElement("button");
-          b.type = "button";
-          b.className = `slot ${s.free ? "free" : s.why === "past" ? "past" : "busy"}`;
-          b.style.setProperty("--i", String(i));
-          b.textContent = s.time;
-          b.disabled = !s.free;
-          b.title = s.free ? "вільно" : s.why === "past" ? "час уже минув" : "зайнято";
-          if (s.free) {
-            b.dataset.k = `slot-${s.time}`;
-            b.onclick = () => {
-              state.time = s.time;
-              state.open = null;
-              paint();
-            };
-            slotEls.push({ el: b, time: s.time });
+        let i = 0;
+        for (const group of groupByPartOfDay(day.slots)) {
+          const wrap = document.createElement("div");
+          wrap.className = "sgroup";
+          const head = document.createElement("div");
+          head.className = "sgroup-h";
+          head.textContent = group.label;
+          const grid = document.createElement("div");
+          grid.className = "sgrid";
+
+          for (const s of group.slots) {
+            const b = document.createElement("button");
+            b.type = "button";
+            b.className = "slot";
+            b.style.setProperty("--i", String(i++));
+            b.textContent = s.time;
+            b.disabled = !s.free;
+            b.title = s.free ? "вільно" : s.why === "past" ? "час уже минув" : "зайнято";
+            if (s.free) {
+              b.dataset.k = `slot-${s.time}`;
+              b.onclick = () => {
+                state.time = s.time;
+                state.open = null;
+                paint();
+              };
+              slotEls.push({ el: b, time: s.time });
+            }
+            grid.append(b);
           }
-          box.append(b);
-        });
+
+          wrap.append(head, grid);
+          box.append(wrap);
+        }
       });
     }
 
@@ -481,51 +449,34 @@ export function mountBooking(root, business, adapter) {
     }
   }
 
-  /* ── підсумок і кнопка ───────────────────────────────────────────────── */
-
-  function paintFoot() {
+  /* ── панель із ціною і кнопкою ───────────────────────────────────────── */
+  function paintBar() {
     const day = current();
-    const svc = state.svc === null ? null : business.services[state.svc];
-    const unit = state.unit === null ? null : business.units[state.unit];
+    const svc = chosenSvc();
+    const unit = chosenUnit();
     const name = normalizeName($("nm").value);
     const phone = normalizePhone($("ph").value);
     const ready = !!svc && !!unit && !!day && !!state.time;
 
-    // Що написано в згорнутому рядку кроку. Це єдине, що від кроку лишається
-    // на екрані, тому воно має читатись без нього: не «5 вер», а «субота,
-    // 5 вересня».
-    fill($("p-service"), [svc ? svc.name : null, svc ? svc.price : null]);
-    fill($("p-unit"), [unit ? unit.name : null]);
-    fill($("p-day"), [day ? dayWithWeekday(day.date, today) : null]);
-    fill($("p-time"), [state.time ?? null]);
-    fill($("p-name"), [name.ok ? name.value : null, phone.ok ? prettyPhone(phone.value) : null]);
+    // Рядок під назвою кроку: поки не обрано — що тут робити, коли обрано —
+    // сам вибір. Це єдине, що лишається на екрані від згорнутого кроку.
+    const mark = (id, text, i) => {
+      const el = $(id);
+      el.textContent = text || STEP_HINT[i];
+    };
+    mark("p-service", svc ? [svc.name, svc.price].filter(Boolean).join(" · ") : "", 0);
+    mark("p-unit", unit ? unit.name : "", 1);
+    mark("p-day", day ? dayWithWeekday(day.date, today) : "", 2);
+    mark("p-time", state.time ?? "", 3);
+    mark("p-name", [name.ok ? name.value : null, phone.ok ? prettyPhone(phone.value) : null].filter(Boolean).join(" · "), 4);
 
-    // Підсумок над кнопкою — те саме, але одним поглядом: хто, коли, на що.
-    const sum = $("sum");
-    sum.textContent = "";
-    if (!ready) {
-      sum.className = "sum wait";
-      sum.textContent = !svc
-        ? "Оберіть послугу, щоб побачити ціну й вільний час."
-        : !unit ? `Оберіть ${(business.unitTitle ?? "майстра").toLowerCase()}.`
-          : !day ? "Оберіть день." : "Оберіть час — і можна записуватись.";
-    } else {
-      sum.className = "sum";
-      // Ім'я і номер — різні речі, тому не риска посередині, а два краї рядка.
-      const who = document.createElement("div");
-      who.className = "sum-who";
-      edges(who, name.ok ? name.value : "Ви", phone.ok ? prettyPhone(phone.value) : "");
-
-      const when = document.createElement("div");
-      when.className = "sum-when";
-      when.textContent = `${dayWithWeekday(day.date, today)}, ${state.time}`;
-
-      const what = document.createElement("div");
-      what.className = "sum-what";
-      edges(what, svc.name, unit.name);
-
-      sum.append(who, when, what);
-    }
+    $("bar-total").textContent = svc ? (svc.price ?? "—") : "—";
+    $("bar-meta").textContent = !svc
+      ? "оберіть послугу"
+      : !unit ? `оберіть ${(business.unitTitle ?? "майстра").toLowerCase()}`
+        : !day ? "оберіть день"
+          : !state.time ? "оберіть час"
+            : `${shortDate(day.date)}, ${state.time}`;
 
     $("go").disabled = !ready || state.sending;
     $("go").textContent = state.sending ? "Записуємо…" : "Записатись";
@@ -535,20 +486,18 @@ export function mountBooking(root, business, adapter) {
   const stepEls = [...root.querySelectorAll(".step[data-step]")];
   const calm = calmMotion();
   const scroller = createScroller();
-  /** Скільки зверху з'їдає липка шапка. Липкого зараз нічого немає — демо-
-      попередження переїхало вниз, — але правило прокрутки вміє з нею жити,
-      тому місце лишаємо. */
+  /** Скільки зверху з'їдає липка шапка. Липкого нічого немає, але правило
+      прокрутки вміє з нею жити, тому місце лишаємо. */
   const topInset = () => 0;
   let lastOpen = -1;
-  let settled = false;   // на першій відмальовці нікуди не веземо і нічого не анімуємо
+  let settled = false;
 
   /**
-   * Доводимо до наступного кроку.
+   * Доводимо до кроку, який щойно відкрився.
    *
-   * Їдемо одразу, не чекаючи: затримка читалась як «сторінка задумалась».
-   * Списки в цю мить ще згортаються, тому ціль перераховується щокадру —
-   * цим займається motion.js, а куди саме ставити крок, рахує core/scroll.js:
-   * влазить — по центру вільного місця, не влазить — заголовком під стрічку.
+   * Правило руху одне: рухатись рівно стільки, скільки треба. Видно — стоїмо;
+   * нижній край за екраном — підтягуємо рівно до нього. Через це верх блока
+   * лишається на місці, а розгортається тільки низ.
    */
   function reveal(el) {
     if (calm) return;
@@ -579,15 +528,11 @@ export function mountBooking(root, business, adapter) {
       contact: normalizeName($("nm").value).ok && normalizePhone($("ph").value).ok,
     });
 
-    // Відкритий рівно один крок. Решта згорнуті в рядок «що обрано» — саме це
-    // й прибирає з екрана все зайве: людина бачить свій вибір, а не п'ять
-    // розгорнутих списків одразу.
     const open = openStep(states, state.open);
 
     states.forEach((st, i) => {
       const el = stepEls[i];
       if (!el) return;
-      el.classList.toggle("active", st === "active");
       el.classList.toggle("done", st === "done");
       el.classList.toggle("open", i === open);
       if (st === "active") el.setAttribute("aria-current", "step");
@@ -595,14 +540,12 @@ export function mountBooking(root, business, adapter) {
 
       const btn = el.querySelector(".step-btn");
       btn.setAttribute("aria-expanded", String(i === open));
-      // Уперед не пускаємо, назад — будь ласка.
       btn.disabled = st === "todo" && i !== open;
 
       // Кружок перемальовуємо, ТІЛЬКИ коли він справді міняє вигляд.
       // Порівнювати innerHTML із рядком SVG не можна: браузер серіалізує
       // <path/> як <path></path>, рядки ніколи не збігаються — і галочка
-      // домальовувалась заново в УСІХ пройдених кроках на кожен клік.
-      // Тепер анімується рівно та, яку щойно поставили.
+      // домальовувалась заново в усіх пройдених кроках на кожен клік.
       const num = el.querySelector(".num");
       num.classList.toggle("ok", st === "done");
       const mark = st === "done" ? "tick" : "num";
@@ -611,30 +554,12 @@ export function mountBooking(root, business, adapter) {
         num.innerHTML = mark === "tick" ? NUM_TICK : String(i + 1);
       }
       num.setAttribute("aria-label", st === "done" ? `Крок ${i + 1}, виконано` : `Крок ${i + 1}`);
-
-      // Текст лишається на місці завжди — показує чи ховає його CSS. Якби ми
-      // стирали рядок, він зникав би ривком, без жодного переходу.
-      const hint = el.querySelector(".hint span");
-      if (hint.textContent !== STEP_HINT[i]) hint.textContent = STEP_HINT[i];
     });
 
-    // Смужка прогресу. Назву кроку беремо з його ж заголовка — щоб не тримати
-    // ті самі слова у двох місцях і щоб «Пост» брався з даних закладу.
     const now = activeStep(states);
     const doneCount = states.filter((st) => st === "done").length;
     $("bar").style.width = `${Math.round((doneCount / states.length) * 100)}%`;
-    $("plab").innerHTML = "";
-    if (now === -1) {
-      $("plab").textContent = "Усе заповнено — можна записуватись";
-    } else {
-      const title = stepEls[now].querySelector(".ttl").textContent;
-      const lead = document.createTextNode(`Крок ${now + 1} з ${states.length}`);
-      const sep = document.createElement("i");
-      sep.className = "sep";
-      const name = document.createElement("b");
-      name.textContent = title;
-      $("plab").append(lead, sep, name);
-    }
+    $("plab").textContent = now === -1 ? "усе готово" : `Крок ${now + 1} з ${states.length}`;
 
     // Веземо до того кроку, який ВІДКРИВСЯ, а не до наступного за списком:
     // коли людина сама повернулась щось змінити, дивитись вона має туди.
@@ -644,9 +569,8 @@ export function mountBooking(root, business, adapter) {
   }
 
   function paint() {
-    // Здебільшого кнопки переживають клік і фокус лишається сам. Але зміна
-    // дня чи місяця таки будує нові — тоді повертаємо фокус на ту саму, інакше
-    // він падає на початок сторінки.
+    // Здебільшого кнопки переживають клік і фокус лишається сам. Але зміна дня
+    // чи місяця таки будує нові — тоді повертаємо фокус на ту саму.
     const held = root.activeElement && root.activeElement.dataset ? root.activeElement.dataset.k : null;
 
     syncService();
@@ -654,7 +578,7 @@ export function mountBooking(root, business, adapter) {
     syncQuick();
     syncCalendar();
     syncSlots();
-    paintFoot();
+    paintBar();
     paintGuide();
 
     if (!painted) {
@@ -687,12 +611,12 @@ export function mountBooking(root, business, adapter) {
 
   $("nm").oninput = () => {
     clearError($("nm"), $("nm-err"));
-    paintFoot();
+    paintBar();
     paintGuide();
   };
   $("ph").oninput = () => {
     clearError($("ph"), $("ph-err"));
-    paintFoot();      // номер теж іде в підсумок, тож його треба перемалювати
+    paintBar();
     paintGuide();
   };
 
@@ -705,75 +629,40 @@ export function mountBooking(root, business, adapter) {
     const nameOk = showError($("nm"), $("nm-err"), name);
     const phoneOk = showError($("ph"), $("ph-err"), phone);
     if (!nameOk || !phoneOk) {
-      // Поле з помилкою показуємо тією ж плавною подорожжю, що й кроки, а не
-      // ривком браузера: focus() без preventScroll кидає сторінку миттєво.
       $(nameOk ? "ph" : "nm").focus({ preventScroll: true });
       reveal(stepEls[4]);
       return;
     }
 
     state.sending = true;
-    paintFoot();
+    paintBar();
 
     const day = current();
     try {
       const res = await adapter.submit({
         name: name.value,
         phone: phone.value,
-        service: business.services[state.svc].name,
-        unit: business.units[state.unit].name,
+        service: chosenSvc().name,
+        unit: chosenUnit().name,
         date: day.date,
         time: state.time,
       });
-      celebrate(day, () => {
-        renderDone(day, res);
-        window.scrollTo({ top: 0, behavior: "auto" });
-      });
+      scroller.stop();
+      renderDone(day, res, phone.value);
+      window.scrollTo({ top: 0, behavior: "auto" });
     } catch {
       state.sending = false;
-      paintFoot();
-      $("sum").textContent = "Не вдалось записати. Перевірте зв'язок і спробуйте ще раз.";
+      paintBar();
+      $("bar-meta").textContent = "не вдалось — спробуйте ще раз";
     }
   };
-
-  /**
-   * Повноекранне «Записано».
-   *
-   * Кнопку тиснуть унизу сторінки. Якщо малювати галочку вгорі, людина її не
-   * побачить: поки доїде — усе скінчилось. Тому святкуємо там, де вона зараз,
-   * а сторінку під сплешем перемотуємо миттєво, без плавності — її все одно
-   * не видно, зате нічого не смикається, коли сплеш іде.
-   */
-  function celebrate(day, then) {
-    scroller.stop();     // подорож до кроку більше не має сенсу — усе зроблено
-    if (calm) {          // просили менше руху — не влаштовуємо вистав
-      then();
-      return;
-    }
-
-    const splash = document.createElement("div");
-    splash.className = "splash";
-    splash.setAttribute("role", "status");
-    splash.innerHTML =
-      `<div class="big-tick">${XL_TICK}</div>` +
-      '<div class="splash-t">Записано</div><div class="splash-s"></div>';
-    splash.querySelector(".splash-s").textContent = `${shortDate(day.date)}, ${state.time}`;
-    document.body.append(splash);
-
-    setTimeout(() => {
-      then();
-      splash.classList.add("out");
-      setTimeout(() => splash.remove(), 420);
-    }, 1550);
-  }
 
   /* ── екран підтвердження ─────────────────────────────────────────────── */
 
   /**
    * Три повідомлення розкладаємо по двох переписках: те, що бачить клієнт у
    * своєму телефоні, і те, що падає адміністратору. Саме це ми й продаємо, тож
-   * показуємо не «повідомлення в рамці», а те, як воно виглядатиме насправді —
-   * бабл із хвостиком, час у куті, кнопки під текстом.
+   * показуємо не «повідомлення в рамці», а те, як воно виглядатиме насправді.
    */
   function chatsOf(messages) {
     const chats = [];
@@ -804,9 +693,10 @@ export function mountBooking(root, business, adapter) {
     };
   }
 
-  function renderChat(chat, now) {
+  function renderChat(chat, now, i) {
     const box = document.createElement("section");
     box.className = "chat";
+    box.style.setProperty("--i", String(i));
 
     const top = document.createElement("div");
     top.className = "chat-top";
@@ -823,8 +713,10 @@ export function mountBooking(root, business, adapter) {
     feed.className = "feed";
 
     let lastDay = null;
-    chat.items.forEach((m, i) => {
+    for (const m of chat.items) {
       const stamp = stampOf(m.when, now);
+      const wrap = document.createElement("div");
+
       // Роздільник дня — як у месенджері: тільки коли день змінився.
       if (stamp.day !== lastDay) {
         lastDay = stamp.day;
@@ -833,12 +725,8 @@ export function mountBooking(root, business, adapter) {
         const pill = document.createElement("span");
         pill.textContent = stamp.day;
         sep.append(pill);
-        feed.append(sep);
+        wrap.append(sep);
       }
-
-      const msg = document.createElement("div");
-      msg.className = "tg-msg";
-      msg.style.setProperty("--i", String(i));
 
       const bubble = document.createElement("div");
       bubble.className = "tg-b";
@@ -866,27 +754,21 @@ export function mountBooking(root, business, adapter) {
         bubble.append(foot);
       }
 
-      // Час сидить у куті бабла, як у Telegram. Галочок немає навмисно: це
-      // вхідне повідомлення, а не наше — у месенджері їх там і не буває.
-      const time = document.createElement("span");
+      const time = document.createElement("div");
       time.className = "tg-time";
-      time.textContent = stamp.time;
+      time.innerHTML = `<span>${stamp.time}</span>${READ_TICK}`;
       bubble.append(time);
+      wrap.append(bubble);
 
-      msg.append(bubble);
-
-      // Інлайн-клавіатура бота. Кнопки справжні — і це навмисно: власник має
-      // сам натиснути й побачити, що відповідь клієнта це один дотик, а не
-      // дзвінок і не «передзвоніть пізніше». Нічого нікуди не йде, тому під
-      // кнопками одразу з'являється рядок про те, що станеться насправді.
+      // Кнопки бота справжні — і це навмисно: власник має сам натиснути й
+      // побачити, що відповідь клієнта це один дотик, а не дзвінок.
       if (m.parts.buttons) {
-        msg.classList.add("has-kb");
         const kb = document.createElement("div");
         kb.className = "tg-kb";
         const note = document.createElement("div");
         note.className = "tg-note";
-
         const picks = [];
+
         for (const label of m.parts.buttons) {
           const b = document.createElement("button");
           b.type = "button";
@@ -902,41 +784,90 @@ export function mountBooking(root, business, adapter) {
           picks.push(b);
           kb.append(b);
         }
-        msg.append(kb, note);
+        wrap.append(kb, note);
       }
 
-      feed.append(msg);
-    });
+      feed.append(wrap);
+    }
 
     box.append(top, feed);
     return box;
   }
 
-  function renderDone(day, res) {
+  /** Талон. Те, що можна показати на стійці, читається як «запис існує», а не
+      як чергове повідомлення про успіх. */
+  function renderTicket(day) {
+    const svc = chosenSvc();
+    const unit = chosenUnit();
+    const no = ticketCode(`${day.key}|${state.time}|${svc.name}|${unit.name}`);
+
+    const box = document.createElement("div");
+    box.className = "ticket";
+    box.innerHTML =
+      '<div class="ticket-h">' +
+        '<div class="ticket-top">' +
+          '<div style="flex:1;min-width:0">' +
+            '<div class="eyebrow">Талон запису</div><div class="ticket-name"></div>' +
+          '</div>' +
+          '<div class="ticket-price"><b></b><span>на місці</span></div>' +
+        '</div>' +
+        '<div class="ticket-chips"></div>' +
+      '</div>' +
+      '<div class="perf"><i></i><b></b><i></i></div>' +
+      '<div class="ticket-grid"></div>';
+
+    box.querySelector(".ticket-name").textContent = svc.name;
+    box.querySelector(".ticket-price b").textContent = svc.price ?? "за оглядом";
+
+    const chips = box.querySelector(".ticket-chips");
+    for (const text of [`№ ${initials(business.name)}-${no}`, durationLabel(business.hours.stepMin), unit.name]) {
+      const s = document.createElement("span");
+      s.textContent = text;
+      chips.append(s);
+    }
+
+    const grid = box.querySelector(".ticket-grid");
+    const cells = [
+      ["Коли", `${dayWithWeekday(day.date, today)}, ${state.time}`],
+      [business.unitTitle ?? "Майстер", unit.name],
+      ["Адреса", business.address],
+    ];
+    cells.forEach(([k, v], i) => {
+      const cell = document.createElement("div");
+      if (i === cells.length - 1 && cells.length % 2) cell.style.gridColumn = "1 / -1";
+      const kk = document.createElement("div");
+      kk.className = "k";
+      kk.textContent = k;
+      const vv = document.createElement("div");
+      vv.className = "v";
+      vv.textContent = v;
+      cell.append(kk, vv);
+      grid.append(cell);
+    });
+
+    return box;
+  }
+
+  function renderDone(day, res, phone) {
     const box = $("done");
     box.textContent = "";
     const now = new Date();
 
-    const tick = document.createElement("div");
-    tick.className = "tick";
-    tick.innerHTML = BIG_TICK;
-
-    const h = document.createElement("h2");
-    h.textContent = `Записано на ${dayWithWeekday(day.date, today)}, ${state.time}`;
-
-    const lead = document.createElement("div");
-    lead.className = "lead";
-    lead.textContent = res.sent
-      ? "Підтвердження вже надіслано."
-      : "Ось що відбувається в цю ж секунду — без участі адміністратора";
-
     const top = document.createElement("div");
     top.className = "done-top";
-    top.append(tick, h, lead);
+    top.innerHTML = `<div class="big-ok">${BIG_TICK}</div><h2>Вас записано</h2><div class="lead"></div>`;
+    top.querySelector(".lead").textContent = res.sent
+      ? `Підтвердження надіслали на ${prettyPhone(phone)}`
+      : "Ось що прийшло б у цю ж секунду — без участі адміністратора";
+
+    const nextH = document.createElement("div");
+    nextH.className = "next-h";
+    nextH.innerHTML = '<div class="eyebrow">Що відбувається далі</div><p></p>';
+    nextH.querySelector("p").textContent = "Повідомлення йдуть автоматично — адміністратор не потрібен.";
 
     const chats = document.createElement("div");
     chats.className = "chats";
-    for (const chat of chatsOf(res.messages)) chats.append(renderChat(chat, now));
+    chatsOf(res.messages).forEach((chat, i) => chats.append(renderChat(chat, now, i)));
 
     const again = document.createElement("button");
     again.type = "button";
@@ -944,8 +875,16 @@ export function mountBooking(root, business, adapter) {
     again.textContent = "Пройти ще раз";
     again.onclick = () => location.reload();
 
-    box.append(top, chats, again);
+    box.append(top, renderTicket(day), nextH, chats, again);
+    if (!res.sent) {
+      const note = document.createElement("div");
+      note.className = "demo-note";
+      note.innerHTML = "Це <b>демонстрація</b>. Справжній запис не створюється, повідомлення нікому не йдуть.";
+      box.append(note);
+    }
+
     $("flow").hidden = true;
+    $("cta-bar").hidden = true;
     box.hidden = false;
   }
 

@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { dayKey, hashPercent, buildSlots, countFree, nextDays, bestDayIndex, monthGrid, monthIndex } from "../src/core/schedule.js";
-import { plural, shortDate, dayLabel, relDayLabel, relLongDayLabel, longDate, dayWithWeekday, monthTitle, freeLabel, freeDaysLabel, busyReason } from "../src/core/format.js";
+import { dayKey, hashPercent, buildSlots, countFree, nextDays, bestDayIndex, monthGrid, monthIndex, groupByPartOfDay, ticketCode } from "../src/core/schedule.js";
+import { plural, shortDate, dayLabel, relDayLabel, relLongDayLabel, longDate, dayWithWeekday, durationLabel, monthTitle, freeLabel, freeDaysLabel, busyReason } from "../src/core/format.js";
 import { normalizePhone, prettyPhone, normalizeName } from "../src/core/validate.js";
 import { clientConfirmation, adminAlert, reminderAt, buildAll } from "../src/core/messages.js";
 import { stepStates, activeStep, openStep, STEP_HINT } from "../src/core/guide.js";
@@ -489,4 +489,46 @@ test("дата з днем тижня читається без календар
   assert.equal(dayWithWeekday(new Date(2026, 8, 3), now), "завтра, 3 вересня");
   assert.equal(dayWithWeekday(new Date(2026, 8, 5), now), "субота, 5 вересня");
   assert.equal(dayWithWeekday(new Date(2026, 8, 7), now), "понеділок, 7 вересня");
+});
+
+/* ── години по частинах доби ────────────────────────────────────────── */
+
+const AT = (...times) => times.map((time) => ({ time, free: true }));
+
+test("години розкладаються на ранок, день і вечір", () => {
+  const groups = groupByPartOfDay(AT("09:00", "11:30", "12:00", "15:00", "16:00", "19:00"));
+  assert.deepEqual(groups.map((g) => g.label), ["Ранок", "День", "Вечір"]);
+  assert.deepEqual(groups[0].slots.map((s) => s.time), ["09:00", "11:30"]);
+  assert.deepEqual(groups[1].slots.map((s) => s.time), ["12:00", "15:00"]);
+  assert.deepEqual(groups[2].slots.map((s) => s.time), ["16:00", "19:00"]);
+});
+
+test("порожня частина доби не показується зовсім", () => {
+  // Підпис над порожнечею гірший за відсутність підпису.
+  const groups = groupByPartOfDay(AT("09:00", "10:00"));
+  assert.deepEqual(groups.map((g) => g.label), ["Ранок"]);
+  assert.deepEqual(groupByPartOfDay([]), []);
+});
+
+test("жодна година не губиться і не подвоюється", () => {
+  const all = AT("09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00");
+  const flat = groupByPartOfDay(all).flatMap((g) => g.slots.map((s) => s.time));
+  assert.deepEqual(flat, all.map((s) => s.time));
+});
+
+test("номер запису той самий для того самого запису і різний для різних", () => {
+  const a = ticketCode("2026-09-04|09:00|Шиномонтаж");
+  assert.equal(a, ticketCode("2026-09-04|09:00|Шиномонтаж"), "той самий запис — той самий номер");
+  assert.notEqual(a, ticketCode("2026-09-04|10:00|Шиномонтаж"));
+  for (const seed of ["", "x", "довгий рядок з кирилицею"]) {
+    const n = ticketCode(seed);
+    assert.ok(n >= 1000 && n <= 9999, `${seed} → ${n}`);
+  }
+});
+
+test("тривалість візиту пишеться по-людськи", () => {
+  assert.equal(durationLabel(60), "1 год");
+  assert.equal(durationLabel(45), "45 хв");
+  assert.equal(durationLabel(90), "1 год 30 хв");
+  assert.equal(durationLabel(120), "2 год");
 });

@@ -82,6 +82,14 @@ export function monthTitle(year, month) {
   return `${MONTH_FULL[month]} ${year}`;
 }
 
+/** «1 год», «45 хв», «1 год 30 хв» — скільки триває візит. */
+export function durationLabel(min) {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  if (!h) return `${m} хв`;
+  return m ? `${h} год ${m} хв` : `${h} год`;
+}
+
 /** «5 вільних місць» — скільки годин ще можна зайняти. */
 export function freeLabel(n) {
   return `${n} ${plural(n, "вільне місце", "вільні місця", "вільних місць")}`;

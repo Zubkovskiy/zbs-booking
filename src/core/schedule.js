@@ -32,6 +32,50 @@ export function hashPercent(seed) {
   return (h >>> 0) % 100;
 }
 
+/**
+ * Номер запису — те, що людина називає, коли дзвонить: «я на 1230».
+ * Береться з самого запису, а не з лічильника: демо не має де його тримати,
+ * а той самий запис мусить давати той самий номер і сьогодні, і завтра.
+ * @param {string} seed усе, що робить запис унікальним
+ * @returns {number} чотири цифри, ніколи не з нуля
+ */
+export function ticketCode(seed) {
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return 1000 + ((h >>> 0) % 9000);
+}
+
+/** Частини доби для сітки годин. Межі — робочі, а не астрономічні. */
+const PARTS = [
+  { label: "Ранок", to: 12 },
+  { label: "День", to: 16 },
+  { label: "Вечір", to: 24 },
+];
+
+/**
+ * Розкласти години по частинах доби.
+ *
+ * Дев'ять однакових плиток поспіль людина читає як стіну; «Ранок · День ·
+ * Вечір» дає їй за що зачепитись оком. Порожні частини не показуємо — краще
+ * три плитки під одним підписом, ніж підпис над порожнечею.
+ *
+ * @param {{time:string}[]} slots
+ * @returns {{label:string, slots:object[]}[]} тільки непорожні групи, за порядком доби
+ */
+export function groupByPartOfDay(slots) {
+  return PARTS.map(({ label, to }) => ({
+    label,
+    slots: slots.filter((s) => {
+      const hour = Number(s.time.slice(0, 2));
+      const from = PARTS[PARTS.findIndex((p) => p.label === label) - 1]?.to ?? 0;
+      return hour >= from && hour < to;
+    }),
+  })).filter((g) => g.slots.length > 0);
+}
+
 export function isWorkday(date, workdays) {
   return workdays.includes(date.getDay());
 }
