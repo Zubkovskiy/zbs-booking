@@ -1,26 +1,5 @@
-/* Токени. Темна тема основна; світла вмикається, коли система прямо її просить.
-   Обидві — той самий набір змінних, жодних окремих правил для компонентів. */
+/* Рух і розміри. Кольори живуть окремо, у palette.css. */
 :root{
-  --bg:#0D1216; --surface:#151D22; --text:#E7EEF2; --muted:#9CACB5;
-  --line:#26323A; --faint:#7A8C95; --cal-line:#2C3D46; --cal-free:#132229;
-  --accent:#5FB6D0; --on-accent:#08131A;
-  --hero:#10262F; --hero-text:#E7F3F7; --hero-muted:#8FB3BF;
-  --sel:#15303A; --busy-bg:#1B252B; --free:#5CC79B; --free-soft:#12271F;
-  --warn:#D9A44B; --err:#F08A80; --warn-bg:#2A2211; --warn-line:#4E4222; --warn-text:#EBC97F;
-  --shadow:0 1px 2px rgba(0,0,0,.45);
-  --shadow-lg:0 10px 24px rgba(0,0,0,.5);
-  --shadow-cta:0 4px 14px rgba(95,182,208,.22);
-  --ring:rgba(95,182,208,.38);
-
-  /* Кольори чужого екрана: у переписці на екрані підтвердження вони
-     месенджерні, а не сторінкові. Чат і має виглядати чужим — це телефон
-     клієнта, а не наш блок. */
-  --tg-bg:#0E1621; --tg-top:#17212B; --tg-in:#182533; --tg-text:#F2F6F9;
-  --tg-dim:#7D8B99; --tg-link:#62BCF9; --tg-line:rgba(255,255,255,.07);
-  --tg-pill:rgba(255,255,255,.09); --tg-btn:rgba(255,255,255,.09);
-  --tg-btn-hover:rgba(255,255,255,.16);
-  --tg-av1:#63B0E8; --tg-av2:#2E7ED4;
-
   /* Рух. Дві криві, і різниця між ними принципова: дотик має відповісти
      миттєво (різкий старт — це і є відповідь), а от переїзди й висоти з таким
      стартом читаються як ривок.
@@ -35,42 +14,6 @@
   /* Згортання кроку — єдине, що рухає сотні пікселів разом із прокруткою,
      тому в нього своя тривалість, рівна найкоротшій подорожі прокрутки. */
   --t-fold:.6s;
-}
-@media (prefers-color-scheme:light){
-  :root:not([data-theme="dark"]){
-    --bg:#EDF1F0; --surface:#FFFFFF; --text:#131A1F; --muted:#4A5760;
-    --line:#DBE2E6; --faint:#7C8B93; --cal-line:#CFE0E6; --cal-free:#F4FAFB;
-    --accent:#0F5C74; --on-accent:#FFFFFF;
-    --hero:#0C4E61; --hero-text:#EAF6F9; --hero-muted:#A9CFDB;
-    --sel:#E1EEF2; --busy-bg:#E4E9EC; --free:#1F6B4F; --free-soft:#E3F1EA;
-    --warn:#9A5B0B; --err:#B3261E; --warn-bg:#FAF2DB; --warn-line:#E7D6A6; --warn-text:#6B4708;
-    --shadow:0 1px 2px rgba(19,26,31,.06);
-    --shadow-lg:0 10px 24px rgba(12,45,60,.13);
-    --shadow-cta:0 4px 14px rgba(15,92,116,.26);
-    --ring:rgba(15,92,116,.30);
-    --tg-bg:#E5EAF0; --tg-top:#FFFFFF; --tg-in:#FFFFFF; --tg-text:#101619;
-    --tg-dim:#8A97A3; --tg-link:#3390EC; --tg-line:#D5DDE4;
-    --tg-pill:rgba(16,32,45,.10); --tg-btn:rgba(16,32,45,.06);
-    --tg-btn-hover:rgba(16,32,45,.12);
-    --tg-av1:#69B4EE; --tg-av2:#3B87D8;
-  }
-}
-:root[data-theme="light"]{
-  --bg:#EDF1F0; --surface:#FFFFFF; --text:#131A1F; --muted:#4A5760;
-  --line:#DBE2E6; --faint:#7C8B93; --cal-line:#CFE0E6; --cal-free:#F4FAFB;
-  --accent:#0F5C74; --on-accent:#FFFFFF;
-  --hero:#0C4E61; --hero-text:#EAF6F9; --hero-muted:#A9CFDB;
-  --sel:#E1EEF2; --busy-bg:#E4E9EC; --free:#1F6B4F; --free-soft:#E3F1EA;
-  --warn:#9A5B0B; --err:#B3261E; --warn-bg:#FAF2DB; --warn-line:#E7D6A6; --warn-text:#6B4708;
-  --shadow:0 1px 2px rgba(19,26,31,.06);
-  --shadow-lg:0 10px 24px rgba(12,45,60,.13);
-  --shadow-cta:0 4px 14px rgba(15,92,116,.26);
-  --ring:rgba(15,92,116,.30);
-  --tg-bg:#E5EAF0; --tg-top:#FFFFFF; --tg-in:#FFFFFF; --tg-text:#101619;
-  --tg-dim:#8A97A3; --tg-link:#3390EC; --tg-line:#D5DDE4;
-  --tg-pill:rgba(16,32,45,.10); --tg-btn:rgba(16,32,45,.06);
-  --tg-btn-hover:rgba(16,32,45,.12);
-  --tg-av1:#69B4EE; --tg-av2:#3B87D8;
 }
 
 /* scroll-behavior навмисно НЕ smooth: сторінку веде власна прокрутка з
@@ -574,9 +517,13 @@ html.still *{transition:none!important;animation:none!important}
 .tg-t{font-weight:600}
 .tg-l{display:flex;flex-direction:column;margin-top:3px}
 .tg-f{margin-top:6px;font-size:13px;color:var(--tg-dim)}
-/* Час стоїть у нижньому куті, а останній рядок обтікає його — як у месенджері.
-   Галочок немає навмисно: це вхідне повідомлення, у них їх не буває. */
-.tg-time{float:right;margin:4px -3px -2px 8px;font-size:11px;color:var(--tg-dim)}
+/* Час — окремим рядком праворуч під текстом. Був float, і він ламав одразу
+   двоє: звисав нижче бабла, а клавіатура під ним (це flex, тобто власний
+   контекст форматування) не має права налазити на плаваючий елемент — тому
+   ставала вужчою за повідомлення рівно на ширину годин. Прибрали float —
+   і час на місці, і кнопки на всю ширину бабла.
+   Галочок немає навмисно: це вхідне повідомлення, у месенджері їх там не буває. */
+.tg-time{display:block;margin-top:5px;text-align:right;font-size:11px;color:var(--tg-dim)}
 /* Інлайн-клавіатура бота. У месенджері вона приклеєна до бабла знизу, тому
    бабл над нею втрачає нижні заокруглення, а самі кнопки — світлий скляний
    прошарок на всю ширину повідомлення. Вони справжні: натискаються, світяться
@@ -593,7 +540,9 @@ html.still *{transition:none!important;animation:none!important}
 .tg-btn:first-child{border-bottom-left-radius:12px;border-top-left-radius:5px}
 .tg-btn:last-child{border-bottom-right-radius:12px;border-top-right-radius:5px}
 .tg-btn:active{transform:scale(.97)}
-.tg-btn.on{background:var(--tg-link);color:#fff}
+/* Натиснута кнопка бере колір посилання, а її текст — колір тла чату: воно
+   темне в темній темі й світле у світлій, тож читається в обох. */
+.tg-btn.on{background:var(--tg-link);color:var(--tg-bg)}
 .tg-note{
   margin-top:6px;font-size:12px;line-height:1.35;color:var(--tg-dim);
   max-height:0;opacity:0;overflow:hidden;

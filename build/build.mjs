@@ -88,7 +88,12 @@ mountBooking(document, BUSINESS, adapter);
     .replace("{{TITLE}}", biz.pageTitle ?? `Запис · ${biz.name}`)
     .replace("{{DESCRIPTION}}", biz.pageDescription ?? "Онлайн-запис: вільний час видно одразу, підтвердження приходить миттєво.")
     .replace("{{ROBOTS}}", demo ? "noindex, nofollow" : "index, follow")
-    .replace("{{CSS}}", readFileSync(join(SRC, "ui", "booking.css"), "utf8"))
+    // Палітра йде першою: у ній тільки токени, і саме її міняють, коли треба
+    // перефарбувати сторінку цілком.
+    .replace("{{CSS}}", [
+      readFileSync(join(SRC, "ui", "palette.css"), "utf8"),
+      readFileSync(join(SRC, "ui", "booking.css"), "utf8"),
+    ].join("\n"))
     .replace("{{RIBBON}}", demo ? RIBBON : "")
     .replace("{{JS}}", entry);
 
