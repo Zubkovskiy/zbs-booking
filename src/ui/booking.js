@@ -41,7 +41,7 @@ export function mountBooking(root, business, adapter) {
   /* ── шапка ───────────────────────────────────────────────────────────── */
   $("b-logo").textContent = business.name.slice(0, 1);
   $("b-name").textContent = business.name;
-  $("b-sub").textContent = `${business.kind} · ${business.address}`;
+  $("b-sub").textContent = `Онлайн-запис · ${business.address}`;
   $("unit-title").textContent = business.unitTitle ?? "Майстер";
   $("sig").textContent = business.signature ?? "";
   // Кнопка дзвінка — тільки якщо телефон справді є в профілі. Порожня кнопка
@@ -183,8 +183,7 @@ export function mountBooking(root, business, adapter) {
       card.innerHTML =
         '<span class="av"></span>' +
         '<span class="t-txt"><span class="t-name"></span><span class="t-note"></span></span>' +
-        '<span class="rate" hidden></span>' +
-        `<span class="dot">${TICK}</span>`;
+        '<span class="rate" hidden></span>';
       // «Будь-який вільний» — це не людина і не пост, тому в нього значок, а не
       // ініціали: інакше аватар «БВ» читається як ще один майстер.
       const av = card.querySelector(".av");
@@ -199,7 +198,9 @@ export function mountBooking(root, business, adapter) {
         const rate = card.querySelector(".rate");
         rate.hidden = false;
         rate.innerHTML = `${STAR}<b></b>`;
-        rate.querySelector("b").textContent = String(u.rating);
+        // Один знак після коми завжди: «5» поруч із «4.9» читається як інша
+        // шкала, а не як вищий бал.
+        rate.querySelector("b").textContent = Number(u.rating).toFixed(1);
         rate.setAttribute("aria-label", `рейтинг ${u.rating}`);
       }
       card.onclick = async () => {
@@ -420,20 +421,47 @@ export function mountBooking(root, business, adapter) {
     mark("p-time", state.time ?? "", 3);
     mark("p-name", [name.ok ? name.value : null, phone.ok ? prettyPhone(phone.value) : null].filter(Boolean).join(" · "), 4);
 
-    $("bar-total").textContent = svc ? (svc.price ?? "—") : "—";
-    $("bar-meta").textContent = !svc
-      ? "оберіть послугу"
-      : !unit ? `оберіть ${(business.unitTitle ?? "майстра").toLowerCase()}`
-        : !day ? "оберіть день"
-          : !state.time ? "оберіть час"
-            : `${shortDate(day.date)}, ${state.time}`;
+    const total = svc ? (svc.price ?? "за оглядом") : "0 ₴";
+    $("bar-total").textContent = total;
+    $("aside-total").textContent = total;
+
+    // Бічна колонка каже те саме, але розгорнуто: три рядки, кожен або з
+    // вибором, або з чесним «не обрано».
+    const rows = [
+      ["Послуга", svc ? svc.name : null],
+      ["Коли", day && state.time ? `${dayWithWeekday(day.date, today)}, ${state.time}` : day ? dayWithWeekday(day.date, today) : null],
+      [business.unitTitle ?? "Майстер", unit ? unit.name : null],
+    ];
+    const box = $("aside-rows");
+    box.textContent = "";
+    for (const [k, v] of rows) {
+      const row = document.createElement("div");
+      const kk = document.createElement("div");
+      kk.className = "k";
+      kk.textContent = k;
+      const vv = document.createElement("div");
+      vv.className = v ? "v" : "v none";
+      vv.textContent = v ?? "не обрано";
+      row.append(kk, vv);
+      box.append(row);
+    }
+    // Назву наступного кроку беремо з його ж заголовка і НЕ відмінюємо:
+    // «оберіть майстер» звучить як помилка, а «Майстер / Пост / Лікар»
+    // підставляється з даних закладу і в знахідний відмінок не поставиш.
+    const nextStep = [!svc, !unit, !day, !state.time].indexOf(true);
+    $("bar-meta").textContent = nextStep === -1
+      ? `${shortDate(day.date)}, ${state.time}`
+      : `далі: ${stepEls[nextStep].querySelector(".ttl").textContent}`;
 
     // Кнопка ніколи не буває мертвою: поки заповнено не все, вона веде до
     // наступного кроку. Сіра кнопка на пів екрана нічого не пояснює — людина
     // тисне її першою і не розуміє, чому нічого не сталось.
     allReady = ready;
-    $("go").disabled = state.sending;
-    $("go").textContent = state.sending ? "Записуємо…" : ready ? "Записатись" : "Далі";
+    const label = state.sending ? "Записуємо…" : ready ? "Записатись" : "Далі";
+    for (const id of ["go", "go-wide"]) {
+      $(id).disabled = state.sending;
+      $(id).textContent = label;
+    }
   }
 
   let allReady = false;
@@ -515,7 +543,7 @@ export function mountBooking(root, business, adapter) {
     const now = activeStep(states);
     const doneCount = states.filter((st) => st === "done").length;
     $("bar").style.width = `${Math.round((doneCount / states.length) * 100)}%`;
-    $("plab").textContent = now === -1 ? "усе готово" : `Крок ${now + 1} з ${states.length}`;
+    $("plab").textContent = now === -1 ? "готово" : `${now + 1}/${states.length}`;
 
     // Веземо до того кроку, який ВІДКРИВСЯ, а не до наступного за списком:
     // коли людина сама повернулась щось змінити, дивитись вона має туди.
@@ -587,7 +615,7 @@ export function mountBooking(root, business, adapter) {
   };
 
   /* ── відправлення ────────────────────────────────────────────────────── */
-  $("go").onclick = async () => {
+  async function go() {
     if (!allReady) {
       // Повертаємось до звичайного ходу і ведемо до першого незаповненого.
       state.open = null;
@@ -630,7 +658,9 @@ export function mountBooking(root, business, adapter) {
       paintBar();
       $("bar-meta").textContent = "не вдалось — спробуйте ще раз";
     }
-  };
+  }
+  $("go").onclick = go;
+  $("go-wide").onclick = go;
 
   /* ── екран підтвердження ─────────────────────────────────────────────── */
 
@@ -860,6 +890,7 @@ export function mountBooking(root, business, adapter) {
 
     $("flow").hidden = true;
     $("cta-bar").hidden = true;
+    $("aside").hidden = true;
     box.hidden = false;
   }
 

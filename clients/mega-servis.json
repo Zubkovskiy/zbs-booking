@@ -9,7 +9,7 @@
   "signature": "Демо · Богдан Зубковський · zubkovskiy.github.io/Portfolio/ua/",
   "pageTitle": "Запис · Мега-Сервіс",
 
-  "unitTitle": "Пост",
+  "unitTitle": "Майстер",
   "workdays": [1, 2, 3, 4, 5, 6],
   "hours": { "from": 9, "to": 18, "stepMin": 60 },
   "leadMin": 60,
@@ -28,9 +28,10 @@
   ],
 
   "units": [
-    { "id": "any", "name": "Будь-який вільний", "note": "найближчий час" },
-    { "id": "post-diag", "name": "Пост діагностики", "note": "Bosch, Launch" },
-    { "id": "post-alignment", "name": "Пост розвал-сходження", "note": "Hunter 3D" },
-    { "id": "post-tyres", "name": "Шиномонтаж", "note": "R12–R23" }
-  ]
+    { "id": "any", "name": "Будь-який вільний", "note": "найшвидший доступний час" },
+    { "id": "oleh", "name": "Олег Кравець", "note": "двигун, ходова · 12 років", "rating": 4.9 },
+    { "id": "andrii", "name": "Андрій Бондар", "note": "діагностика, електрика · 8 років", "rating": 4.8 },
+    { "id": "iryna", "name": "Ірина Марчук", "note": "ТО, шиномонтаж · 6 років", "rating": 5.0 }
+  ],
+  "_units": "Майстри й рейтинги взяті з макета «Mega-Servis Booking» — це демо-склад, не справжні працівники закладу."
 }

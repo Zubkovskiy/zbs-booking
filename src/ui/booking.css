@@ -510,8 +510,40 @@ body{padding-bottom:104px}   /* під липку панель із кнопко
 }
 .demo-note b{font-weight:800}
 
+/* ── бічна колонка «Ваш запис» ──────────────────────────────────────────── */
+/* На телефоні її немає — там цю роботу робить липка панель унизу. */
+.aside{display:none}
+.aside-card{
+  background:var(--card);border:1px solid var(--line);border-radius:var(--r-card);
+  padding:18px;box-shadow:var(--shadow);
+}
+.aside-rows{display:grid;gap:12px;margin-top:14px}
+.aside-rows .k{
+  font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);
+}
+.aside-rows .v{font-size:15px;font-weight:700;letter-spacing:-.01em;margin-top:4px;line-height:1.3}
+.aside-rows .v.none{color:var(--mut);font-weight:600}
+.aside-total{
+  display:flex;align-items:baseline;justify-content:space-between;gap:10px;
+  margin-top:18px;padding-top:16px;border-top:1px solid var(--line);
+}
+.aside-total span{font-size:13px;color:var(--mut)}
+.aside-total b{font-size:24px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.aside .go{width:100%;margin-top:14px}
+.aside .fine{text-align:center;margin-top:12px}
+
 /* ── широкий екран ──────────────────────────────────────────────────────── */
-@media (min-width:760px){
-  .shell{max-width:560px;padding-top:28px}
-  .bar-in{max-width:560px}
+@media (min-width:900px){
+  /* Воронка ліворуч, підсумок праворуч і не їде — саме так, як у макеті. */
+  .shell{
+    max-width:1060px;padding:28px 20px 40px;
+    display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:20px;align-items:start;
+  }
+  .top{grid-column:1 / -1}
+  .flow{grid-column:1}
+  .aside{display:block;grid-column:2;position:sticky;top:28px}
+  #done,.sig{grid-column:1 / -1}
+  #done{max-width:560px;margin:0 auto;width:100%}
+  .bar{display:none}
+  body{padding-bottom:0}
 }

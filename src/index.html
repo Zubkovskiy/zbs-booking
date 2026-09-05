@@ -145,6 +145,21 @@
     {{RIBBON}}
   </main>
 
+  <!-- На широкому екрані підсумок стоїть збоку й нікуди не їде; на телефоні
+       його роботу робить липка панель унизу. -->
+  <aside class="aside" id="aside">
+    <div class="aside-card">
+      <div class="eyebrow">Ваш запис</div>
+      <div class="aside-rows" id="aside-rows"></div>
+      <div class="aside-total">
+        <span>До сплати</span>
+        <b id="aside-total">0 ₴</b>
+      </div>
+      <button class="go" id="go-wide" type="button">Далі</button>
+      <p class="fine" id="aside-fine">Оплата на місці — картою або готівкою.</p>
+    </div>
+  </aside>
+
   <div class="done" id="done" hidden></div>
 
   <div class="sig" id="sig"></div>
