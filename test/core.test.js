@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { dayKey, hashPercent, buildSlots, countFree, nextDays, bestDayIndex, monthGrid, monthIndex, groupByPartOfDay, slotStarts, countStarts, ticketCode } from "../src/core/schedule.js";
 import { plural, shortDate, dayLabel, relDayLabel, relLongDayLabel, longDate, dayWithWeekday, durationLabel, splitPrice, monthTitle, freeLabel, freeDaysLabel, busyReason } from "../src/core/format.js";
 import { icsEvent, mapsLink } from "../src/core/calendar.js";
-import { normalizePhone, prettyPhone, normalizeName } from "../src/core/validate.js";
+import { normalizePhone, prettyPhone, normalizeName, localPhone } from "../src/core/validate.js";
 import { clientConfirmation, adminAlert, reminderAt, buildAll } from "../src/core/messages.js";
 import { stepStates, activeStep, openStep, STEP_HINT } from "../src/core/guide.js";
 import { stepScrollTop, scrollDuration, easeInOut } from "../src/core/scroll.js";
@@ -625,4 +625,16 @@ test("день без жодного початку рахується зайн�
   const day = FREE(true, false, true, false, true);
   assert.equal(countStarts(day, 1), 3);
   assert.equal(countStarts(day, 2), 0, "саме це й ховає день у календарі");
+});
+
+test("підставлений браузером номер втрачає код країни, а недодрукований — ні", () => {
+  // Під полем уже намальовано «+38», тому код країни у видимій частині зайвий.
+  assert.equal(localPhone("+380637781144"), "0637781144");
+  assert.equal(localPhone("380637781144"), "0637781144");
+  assert.equal(localPhone("+38 063 778 11 44"), "0637781144");
+  assert.equal(localPhone("80637781144"), "0637781144");
+  // А поки цифр менше — людина ще друкує, і рядок під пальцями не переписуємо.
+  assert.equal(localPhone("067 111"), "067 111");
+  assert.equal(localPhone("0637781144"), "0637781144");
+  assert.equal(localPhone(""), "");
 });

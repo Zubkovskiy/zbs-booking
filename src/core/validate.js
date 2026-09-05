@@ -6,6 +6,26 @@
  * Людина не має думати про формат — це наша робота.
  * @returns {{ok:true, value:string}|{ok:false, error:string}}
  */
+/**
+ * Що показувати в полі, під яким уже намальовано «+38».
+ *
+ * Браузер підставляє збережений номер цілком — «+380637781144», — і в полі
+ * виходить «+38 +380637781144». Тому код країни з видимої частини знімаємо:
+ * людина бачить свої дев'ять цифр, а не два префікси поспіль.
+ *
+ * Чіпаємо тільки повний номер із кодом країни. Поки цифр менше — людина ще
+ * друкує, і переписувати їй рядок під пальцями не можна.
+ *
+ * @returns {string} те саме, що ввели, або національний запис без коду країни
+ */
+export function localPhone(raw) {
+  const text = String(raw ?? "").trim();
+  const digits = text.replace(/\D/g, "");
+  if (digits.length === 12 && digits.startsWith("380")) return "0" + digits.slice(3);
+  if (digits.length === 11 && digits.startsWith("80")) return "0" + digits.slice(2);
+  return text;
+}
+
 export function normalizePhone(raw) {
   const digits = String(raw ?? "").replace(/\D/g, "");
   if (!digits) return { ok: false, error: "Вкажіть телефон — на нього прийде підтвердження." };

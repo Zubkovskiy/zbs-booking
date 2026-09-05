@@ -9,7 +9,7 @@
 import { nextDays, bestDayIndex, dayKey, monthGrid, monthIndex, isWorkday, groupByPartOfDay, slotStarts, countStarts, ticketCode } from "../core/schedule.js";
 import { shortDate, dayWithWeekday, relLongDayLabel, monthTitle, freeLabel, busyReason, durationLabel, servicePrice, totalPrice, plural, WEEKDAY_HEAD } from "../core/format.js";
 import { icsEvent, mapsLink } from "../core/calendar.js";
-import { normalizeName, normalizePhone, prettyPhone } from "../core/validate.js";
+import { normalizeName, normalizePhone, prettyPhone, localPhone } from "../core/validate.js";
 import { stepStates, activeStep, openStep, STEP_HINT } from "../core/guide.js";
 import { createScroller, glideToStep, morphHeight, calmMotion } from "./motion.js";
 
@@ -672,6 +672,13 @@ export function mountBooking(root, business, adapter) {
     input.setAttribute("aria-invalid", "false");
   }
 
+  // Chrome підставляє збережене без жодної події, тому один раз перевіряємо
+  // самі: інакше «+38 +380…» лишиться в полі до першого дотику.
+  addEventListener("pageshow", () => {
+    const short = localPhone($("ph").value);
+    if (short !== $("ph").value) $("ph").value = short;
+  });
+
   $("remind-sub").textContent = "Нагадаємо за добу до візиту";
   $("remind").onclick = () => {
     state.remind = !state.remind;
@@ -689,6 +696,10 @@ export function mountBooking(root, business, adapter) {
     paintGuide();
   };
   $("ph").oninput = () => {
+    // Браузер підставляє номер із кодом країни, а «+38» уже намальовано в полі.
+    // Знімаємо код, щоб не виходило два префікси поспіль.
+    const short = localPhone($("ph").value);
+    if (short !== $("ph").value) $("ph").value = short;
     clearError($("ph"), $("ph-err"));
     paintBar();
     paintGuide();
@@ -982,31 +993,23 @@ export function mountBooking(root, business, adapter) {
       note: `${business.unitTitle ?? "Майстер"}: ${chosenUnit().name}`,
       uid: `${day.key}-${state.time}@zbs-booking`,
     });
-    const cal = document.createElement("a");
-    cal.className = "act main";
-    cal.textContent = "Додати в календар";
-    cal.href = `data:text/calendar;charset=utf-8,${encodeURIComponent(ics)}`;
-    cal.download = `zapys-${day.key}.ics`;
-
-    const pair = document.createElement("div");
-    pair.className = "pair";
+    // Головна дія тут — доїхати. Календар лишається, але другим планом:
+    // подію додають одиниці, а дорогу шукають усі. Кнопки «подзвонити» немає
+    // навмисно — дзвінок це те, від чого ми звільняємо і клієнта, і власника.
     const route = document.createElement("a");
-    route.className = "act";
+    route.className = "act main";
     route.textContent = "Маршрут";
     route.href = mapsLink(business.address);
     route.target = "_blank";
     route.rel = "noopener";
-    pair.append(route);
-    if (business.phone) {
-      const call = document.createElement("a");
-      call.className = "act";
-      call.textContent = "Подзвонити";
-      call.href = `tel:${business.phone.replace(/[^\d+]/g, "")}`;
-      pair.append(call);
-    } else {
-      pair.style.gridTemplateColumns = "1fr";
-    }
-    acts.append(cal, pair);
+
+    const cal = document.createElement("a");
+    cal.className = "act";
+    cal.textContent = "Додати в календар";
+    cal.href = `data:text/calendar;charset=utf-8,${encodeURIComponent(ics)}`;
+    cal.download = `zapys-${day.key}.ics`;
+
+    acts.append(route, cal);
 
     const again = document.createElement("button");
     again.type = "button";

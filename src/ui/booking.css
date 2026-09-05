@@ -357,6 +357,22 @@ body{padding-bottom:104px}   /* під липку панель із кнопко
 .switch.on .switch-track{background:var(--acc)}
 .switch.on .switch-track i{transform:translateX(18px)}
 
+/* Автозаповнення. Браузер малює власний блакитний фон і чорний текст — на
+   темній сторінці це виглядає як зламане поле. Своїм кольором його не
+   перебити, тому фон підмінюємо внутрішньою тінню на всю ширину, а колір
+   тексту задаємо через -webkit-text-fill-color. Нескінченний перехід тримає
+   підміну живою: інакше браузер повертає своє тло за кілька секунд. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus{
+  -webkit-text-fill-color:var(--ink);
+  caret-color:var(--ink);
+  box-shadow:0 0 0 100px var(--soft) inset;
+  -webkit-box-shadow:0 0 0 100px var(--soft) inset;
+  transition:background-color 100000s ease-out;
+  font-weight:600;
+}
+
 .fields input.bad,.tel:has(input.bad){border-color:var(--err)}
 .err{
   display:flex;gap:6px;margin-top:6px;color:var(--err);font-size:12.5px;line-height:1.35;
