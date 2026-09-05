@@ -7,7 +7,7 @@
 // анімуватись), губило фокус із клавіатури і давало смиканину на кожен клік.
 
 import { nextDays, countFree, bestDayIndex, dayKey, monthGrid, monthIndex, isWorkday, groupByPartOfDay, ticketCode } from "../core/schedule.js";
-import { shortDate, dayWithWeekday, relLongDayLabel, monthTitle, freeLabel, busyReason, durationLabel, splitPrice, plural, WEEKDAY_HEAD } from "../core/format.js";
+import { shortDate, dayWithWeekday, relLongDayLabel, monthTitle, freeLabel, busyReason, durationLabel, servicePrice, totalPrice, plural, WEEKDAY_HEAD } from "../core/format.js";
 import { icsEvent, mapsLink } from "../core/calendar.js";
 import { normalizeName, normalizePhone, prettyPhone } from "../core/validate.js";
 import { stepStates, activeStep, openStep, STEP_HINT } from "../core/guide.js";
@@ -44,7 +44,18 @@ export function mountBooking(root, business, adapter) {
   $("b-name").textContent = business.name;
   $("b-sub").textContent = `Онлайн-запис · ${business.address}`;
   $("unit-title").textContent = business.unitTitle ?? "Майстер";
-  $("sig").textContent = business.signature ?? "";
+  // Підпис із крапками ділимо на частини: між ними стане тонка риска, а
+  // адреса портфоліо — посиланням, а не сірим текстом упритул до тексту.
+  const sig = $("sig");
+  sig.textContent = "";
+  (business.signature ?? "").split("·").map((x) => x.trim()).filter(Boolean).forEach((part, i) => {
+    if (i) sig.append(Object.assign(document.createElement("i"), { ariaHidden: "true" }));
+    const isLink = /^[\w.-]+\.[a-z]{2,}(\/|$)/i.test(part);
+    const el = document.createElement(isLink ? "a" : "span");
+    if (isLink) el.href = `https://${part.replace(/\/$/, "")}`;
+    el.textContent = part.replace(/\/$/, "");
+    sig.append(el);
+  });
   // Кнопка дзвінка — тільки якщо телефон справді є в профілі. Порожня кнопка
   // «подзвонити» гірша за її відсутність.
   if (business.phone) {
@@ -53,7 +64,7 @@ export function mountBooking(root, business, adapter) {
   }
 
   const state = {
-    svc: null,
+    svcs: [],        // індекси обраних послуг; кружком їх можна набрати кілька
     unit: null,
     key: null,
     view: null,      // {y, m} — який місяць показує календар
@@ -99,7 +110,7 @@ export function mountBooking(root, business, adapter) {
   }
 
   const current = () => (state.key ? byKey.get(state.key) : null);
-  const chosenSvc = () => (state.svc === null ? null : business.services[state.svc]);
+  const chosen = () => state.svcs.map((i) => business.services[i]);
   const chosenUnit = () => (state.unit === null ? null : business.units[state.unit]);
 
   /* Рух вмикається не одразу, і це найдешевший спосіб прибрати «рвано» на
@@ -142,34 +153,56 @@ export function mountBooking(root, business, adapter) {
     const box = $("services");
 
     business.services.forEach((s, i) => {
-      const opt = document.createElement("button");
-      opt.type = "button";
-      opt.className = "opt";
-      opt.setAttribute("role", "option");
-      opt.innerHTML =
-        '<span class="t-txt"><span class="t-name"></span><span class="t-note"></span></span>' +
-        `<span class="price"><b></b><span></span></span><span class="dot">${TICK}</span>`;
-      opt.querySelector(".t-name").textContent = s.name;
-      opt.querySelector(".t-note").textContent = s.note ?? "";
-      const price = splitPrice(s.price);
-      opt.querySelector(".price b").textContent = price.value;
-      opt.querySelector(".price span").textContent = price.unit;
-      opt.onclick = () => {
-        state.svc = i;
+      // Рядок і кружок — дві різні кнопки, і це не примха розмітки: у кнопку
+      // не можна вкласти кнопку, а поведінка в них різна. Рядок каже «хочу
+      // тільки це», кружок — «додай до того, що вже набрано».
+      const row = document.createElement("div");
+      row.className = "opt";
+      row.innerHTML =
+        '<button class="opt-main" type="button">' +
+          '<span class="t-txt"><span class="t-name"></span><span class="t-note"></span></span>' +
+          '<span class="price"><b></b><span></span></span>' +
+        '</button>' +
+        `<button class="dot" type="button" aria-pressed="false">${TICK}</button>`;
+
+      const name = row.querySelector(".t-name");
+      name.textContent = s.name;
+      if (s.hit) {
+        const tag = document.createElement("span");
+        tag.className = "hit";
+        tag.textContent = "хіт";
+        name.append(" ", tag);
+      }
+      row.querySelector(".t-note").textContent = s.note ?? durationLabel(business.hours.stepMin);
+      const price = servicePrice(s);
+      row.querySelector(".price b").textContent = price.value;
+      row.querySelector(".price span").textContent = price.unit;
+
+      row.querySelector(".opt-main").onclick = () => {
+        state.svcs = [i];
         state.open = null;      // вибір зроблено — ведемо далі, а не лишаємось тут
         paint();
       };
-      svcOpts.push(opt);
-      box.append(opt);
+      const dot = row.querySelector(".dot");
+      dot.setAttribute("aria-label", `${s.name} — додати до вибору`);
+      dot.onclick = () => {
+        // Кружком набирають кілька послуг, тому крок лишається відкритим:
+        // людина щойно сказала, що хоче ще щось. Далі веде кнопка внизу.
+        state.svcs = state.svcs.includes(i) ? state.svcs.filter((n) => n !== i) : [...state.svcs, i];
+        state.open = 0;
+        paint();
+      };
+
+      svcOpts.push(row);
+      box.append(row);
     });
-    box.setAttribute("role", "listbox");
   }
 
   function syncService() {
-    svcOpts.forEach((opt, i) => {
-      const sel = state.svc === i;
-      opt.classList.toggle("sel", sel);
-      opt.setAttribute("aria-selected", String(sel));
+    svcOpts.forEach((row, i) => {
+      const sel = state.svcs.includes(i);
+      row.classList.toggle("sel", sel);
+      row.querySelector(".dot").setAttribute("aria-pressed", String(sel));
     });
   }
 
@@ -406,7 +439,8 @@ export function mountBooking(root, business, adapter) {
   /* ── панель із ціною і кнопкою ───────────────────────────────────────── */
   function paintBar() {
     const day = current();
-    const svc = chosenSvc();
+    const svcs = chosen();
+    const svc = svcs[0] ?? null;
     const unit = chosenUnit();
     const name = normalizeName($("nm").value);
     const phone = normalizePhone($("ph").value);
@@ -418,20 +452,21 @@ export function mountBooking(root, business, adapter) {
       const el = $(id);
       el.textContent = text || STEP_HINT[i];
     };
-    mark("p-service", svc ? [svc.name, svc.price].filter(Boolean).join(" · ") : "", 0);
+    mark("p-service", svcs.map((x) => x.name).join(" + "), 0);
     mark("p-unit", unit ? unit.name : "", 1);
     mark("p-day", day ? dayWithWeekday(day.date, today) : "", 2);
     mark("p-time", state.time ?? "", 3);
     mark("p-name", [name.ok ? name.value : null, phone.ok ? prettyPhone(phone.value) : null].filter(Boolean).join(" · "), 4);
 
-    const total = svc ? (svc.price ?? "за оглядом") : "0 ₴";
+    const t = totalPrice(svcs);
+    const total = t.unit ? `${t.value} ₴` : t.value;
     $("bar-total").textContent = total;
     $("aside-total").textContent = total;
 
     // Бічна колонка каже те саме, але розгорнуто: три рядки, кожен або з
     // вибором, або з чесним «не обрано».
     const rows = [
-      ["Послуга", svc ? svc.name : null],
+      ["Послуга", svcs.length ? svcs.map((x) => x.name).join(" + ") : null],
       ["Коли", day && state.time ? `${dayWithWeekday(day.date, today)}, ${state.time}` : day ? dayWithWeekday(day.date, today) : null],
       [business.unitTitle ?? "Майстер", unit ? unit.name : null],
     ];
@@ -508,7 +543,7 @@ export function mountBooking(root, business, adapter) {
 
   function paintGuide() {
     const states = stepStates({
-      service: state.svc !== null,
+      service: state.svcs.length > 0,
       unit: state.unit !== null,
       day: !!state.key,
       time: !!state.time,
@@ -647,7 +682,8 @@ export function mountBooking(root, business, adapter) {
       const res = await adapter.submit({
         name: name.value,
         phone: phone.value,
-        service: chosenSvc().name,
+        services: chosen().map((x) => ({ name: x.name, price: x.price ?? null, from: !!x.from })),
+        car: $("car").value.trim(),
         unit: chosenUnit().name,
         date: day.date,
         time: state.time,
@@ -677,14 +713,7 @@ export function mountBooking(root, business, adapter) {
     for (const m of messages) {
       let chat = chats.find((c) => c.to === m.to);
       if (!chat) {
-        chat = {
-          to: m.to,
-          name: m.parts.sender,
-          avatar: m.parts.avatar,
-          sub: "бот",
-          tag: m.to === "admin" ? "ваш телефон" : "телефон клієнта",
-          items: [],
-        };
+        chat = { to: m.to, ...m.chat, items: [] };
         chats.push(chat);
       }
       chat.items.push(m);
@@ -744,7 +773,24 @@ export function mountBooking(root, business, adapter) {
       title.textContent = m.parts.title;
       bubble.append(title);
 
-      if (m.parts.lines.length) {
+      // Рядки «ключ → значення» читаються з екрана телефона за секунду —
+      // саме тому в макеті вони, а не суцільний абзац.
+      if (m.parts.rows) {
+        const rows = document.createElement("div");
+        rows.className = "tg-rows";
+        for (const [k, v] of m.parts.rows) {
+          const row = document.createElement("div");
+          const kk = document.createElement("span");
+          kk.textContent = k;
+          const vv = document.createElement("b");
+          vv.textContent = v;
+          row.append(kk, vv);
+          rows.append(row);
+        }
+        bubble.append(rows);
+      }
+
+      if (m.parts.lines) {
         const lines = document.createElement("div");
         lines.className = "tg-l";
         for (const line of m.parts.lines) {
@@ -755,11 +801,11 @@ export function mountBooking(root, business, adapter) {
         bubble.append(lines);
       }
 
-      if (m.parts.foot) {
-        const foot = document.createElement("div");
-        foot.className = "tg-f";
-        foot.textContent = m.parts.foot;
-        bubble.append(foot);
+      if (m.parts.note) {
+        const note = document.createElement("div");
+        note.className = "tg-f";
+        note.textContent = m.parts.note;
+        bubble.append(note);
       }
 
       const time = document.createElement("div");
@@ -786,7 +832,7 @@ export function mountBooking(root, business, adapter) {
             for (const other of picks) other.classList.toggle("on", other === b);
             note.textContent = label === m.parts.buttons[0]
               ? "Готово. Адміністратор бачить підтвердження — дзвонити нікому не треба."
-              : "Готово. Година звільнилась, адміністратор уже бачить це.";
+              : "Готово. Адміністратор уже бачить, що час треба перенести.";
             note.classList.add("on");
           };
           picks.push(b);
@@ -805,9 +851,9 @@ export function mountBooking(root, business, adapter) {
   /** Талон. Те, що можна показати на стійці, читається як «запис існує», а не
       як чергове повідомлення про успіх. */
   function renderTicket(day) {
-    const svc = chosenSvc();
+    const svcs = chosen();
     const unit = chosenUnit();
-    const no = ticketCode(`${day.key}|${state.time}|${svc.name}|${unit.name}`);
+    const no = ticketCode(`${day.key}|${state.time}|${svcs.map((s) => s.name).join("+")}|${unit.name}`);
 
     const box = document.createElement("div");
     box.className = "ticket";
@@ -824,8 +870,9 @@ export function mountBooking(root, business, adapter) {
       '<div class="perf"><i></i><b></b><i></i></div>' +
       '<div class="ticket-grid"></div>';
 
-    box.querySelector(".ticket-name").textContent = svc.name;
-    box.querySelector(".ticket-price b").textContent = svc.price ?? "за оглядом";
+    box.querySelector(".ticket-name").textContent = svcs.map((s) => s.name).join(" + ");
+    const t = totalPrice(svcs);
+    box.querySelector(".ticket-price b").textContent = t.unit ? `${t.value} ₴` : t.value;
 
     const chips = box.querySelector(".ticket-chips");
     for (const text of [`№ ${initials(business.name)}-${no}`, durationLabel(business.hours.stepMin), unit.name]) {
@@ -885,7 +932,7 @@ export function mountBooking(root, business, adapter) {
     const at = new Date(day.date);
     at.setHours(Number(state.time.slice(0, 2)), Number(state.time.slice(3, 5)), 0, 0);
     const ics = icsEvent({
-      title: `${chosenSvc().name} · ${business.name}`,
+      title: `${chosen().map((s) => s.name).join(" + ")} · ${business.name}`,
       at,
       minutes: business.hours.stepMin,
       location: business.address,

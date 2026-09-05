@@ -82,6 +82,34 @@ export function monthTitle(year, month) {
   return `${MONTH_FULL[month]} ${year}`;
 }
 
+/** «1 200» — число з нерозривним пробілом між тисячами. */
+export function money(n) {
+  return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+}
+
+/**
+ * Ціна послуги двома поверхами: число окремо, одиниця окремо.
+ * Ціни немає зовсім — кажемо «за оглядом» і не рахуємо її в сумі.
+ * @param {{price?:number|null, from?:boolean}} svc
+ */
+export function servicePrice(svc) {
+  if (svc.price == null) return { value: "за оглядом", unit: "" };
+  return { value: (svc.from ? "від " : "") + money(svc.price), unit: "грн" };
+}
+
+/**
+ * Скільки всього. «від» лишається, якщо хоч одна складова приблизна або
+ * рахується на місці — інакше сума брехала б точністю, якої в неї немає.
+ * @param {{price?:number|null, from?:boolean}[]} list
+ */
+export function totalPrice(list) {
+  if (!list.length) return { value: "0", unit: "грн" };
+  const sum = list.reduce((n, s) => n + (s.price ?? 0), 0);
+  const rough = list.some((s) => s.from || s.price == null);
+  if (!sum) return { value: "за оглядом", unit: "" };
+  return { value: (rough ? "від " : "") + money(sum), unit: "грн" };
+}
+
 /**
  * Ціна двома поверхами: число окремо, одиниця окремо.
  * У даних вона рядком («від 1 000 ₴», «за оглядом»), бо в неї буває і «від»,

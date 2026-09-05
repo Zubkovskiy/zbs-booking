@@ -43,7 +43,15 @@ html.still *{transition:none!important;animation:none!important}
 body{padding-bottom:104px}   /* під липку панель із кнопкою */
 
 /* ── шапка ──────────────────────────────────────────────────────────────── */
-.top{padding:4px 2px 14px}
+/* Липка: смужка прогресу має бути на очах увесь час, поки людина гортає
+   послуги. Тло непрозоре з розмиттям, інакше картки просвічують крізь неї. */
+.top{
+  position:sticky;top:0;z-index:30;
+  margin:-14px -14px 0;padding:14px 16px 12px;
+  background:var(--bar-bg);border-bottom:1px solid var(--line);
+  backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+}
+.flow{padding-top:14px}
 .brand{display:flex;align-items:center;gap:10px}
 .logo{
   flex:none;width:38px;height:38px;border-radius:12px;
@@ -110,9 +118,14 @@ body{padding-bottom:104px}   /* під липку панель із кнопко
   transition:background var(--t-move) var(--ease),color var(--t-move) var(--ease),
              box-shadow var(--t-move) var(--ease);
 }
-.step.open .num{background:var(--acc);color:var(--on-acc);box-shadow:none;animation:ring 2.4s ease-out infinite}
-.num.ok{background:var(--acc-soft);color:var(--acc-ink);box-shadow:inset 0 0 0 1.5px var(--acc-line);animation:none}
-.step.open .num.ok{background:var(--acc);color:var(--on-acc);box-shadow:none}
+/* Відкритий крок — приглушений зелений: тут ще тільки обирають.
+   Пройдений — яскравий: тут уже є результат. Саме ця різниця й показує, що
+   зроблено, а що ні, ще до того, як людина прочитає підписи. */
+.step.open .num{
+  background:var(--acc-soft);color:var(--acc-ink);
+  box-shadow:inset 0 0 0 1.5px var(--acc-line);animation:ring 2.4s ease-out infinite;
+}
+.num.ok{background:var(--acc);color:var(--on-acc);box-shadow:none;animation:none}
 .num svg{display:block;animation:tick .34s cubic-bezier(.34,1.56,.64,1) both}
 @keyframes ring{
   0%{box-shadow:0 0 0 0 var(--ring)}
@@ -170,6 +183,18 @@ body{padding-bottom:104px}   /* під липку панель із кнопко
   transition:border-color var(--t-swap) var(--ease),background var(--t-swap) var(--ease),
              transform var(--t-tap) var(--ease-tap);
 }
+/* Рядок послуги — це два окремі натискання: сам рядок бере тільки цю послугу,
+   кружок додає її до вже набраних. У кнопку не можна вкласти кнопку, тому
+   контейнер тут div, а клікають по двох кнопках усередині. */
+.opt-main{
+  flex:1;min-width:0;display:flex;align-items:center;gap:12px;
+  text-align:left;color:inherit;cursor:pointer;
+}
+.hit{
+  display:inline-block;vertical-align:2px;margin-left:2px;
+  font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--acc-ink);background:var(--acc-soft);padding:3px 7px;border-radius:var(--r-pill);
+}
 .opt.sel{border-color:var(--acc);background:var(--acc-soft)}
 .t-txt{flex:1;min-width:0;display:block}
 .t-name{display:block;font-size:15px;font-weight:600;letter-spacing:-.01em;line-height:1.3}
@@ -186,8 +211,8 @@ body{padding-bottom:104px}   /* під липку панель із кнопко
 /* Кружок вибору. Порожній контур проти залитого — те саме, що радіо, тільки
    без самого радіо: клікабельний тут увесь рядок. */
 .dot{
-  flex:none;width:22px;height:22px;border-radius:var(--r-pill);
-  display:grid;place-items:center;color:var(--on-acc);
+  flex:none;width:26px;height:26px;border-radius:var(--r-pill);
+  display:grid;place-items:center;color:var(--on-acc);cursor:pointer;
   box-shadow:inset 0 0 0 1.5px var(--line);
   transition:background var(--t-swap) var(--ease),box-shadow var(--t-swap) var(--ease);
 }
@@ -289,6 +314,7 @@ body{padding-bottom:104px}   /* під липку панель із кнопко
 .fields{display:grid;gap:12px}
 .field{display:block}
 .flab{display:block;font-size:12px;font-weight:700;letter-spacing:.04em;color:var(--mut)}
+.flab i{font-style:normal;font-weight:600;opacity:.7}
 .fields input{
   width:100%;min-height:52px;margin-top:6px;padding:0 14px;
   border-radius:var(--r-item);border:1px solid var(--line);background:var(--soft);
@@ -343,8 +369,15 @@ body{padding-bottom:104px}   /* під липку панель із кнопко
   margin:4px 2px 0;font-size:12px;line-height:1.5;color:var(--mut);text-align:center;
 }
 .ribbon b{color:var(--ink);font-weight:700}
-.sig{padding:14px 6px 0;text-align:center;font-size:12px;line-height:1.5;color:var(--mut)}
+/* Підпис. Крапки між частинами зливались із текстом, тому розділювач —
+   тонка вертикальна риска: вона ділить і мовчить. */
+.sig{
+  display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:2px 12px;
+  padding:18px 6px 0;font-size:12px;line-height:1.6;color:var(--mut);
+}
+.sig i{width:1px;height:11px;background:currentColor;opacity:.35;display:inline-block}
 .sig a{color:var(--acc-ink);text-decoration:none}
+.sig a:hover{text-decoration:underline}
 
 /* ── липка панель із ціною і кнопкою ────────────────────────────────────── */
 .bar{
@@ -369,7 +402,7 @@ body{padding-bottom:104px}   /* під липку панель із кнопко
 .go[disabled]{opacity:.7;cursor:progress}
 
 /* ── дотик і наведення ──────────────────────────────────────────────────── */
-.opt:active,.switch:active,.cell.free:active,
+.opt-main:active,.dot:active,.switch:active,.cell.free:active,
 .slot:not([disabled]):active,.nav:not([disabled]):active,.again:active{transform:scale(.977)}
 .go:not([disabled]):active{transform:scale(.99)}
 @media (hover:hover){
@@ -478,6 +511,10 @@ body{padding-bottom:104px}   /* під липку панель із кнопко
 }
 .tg-t{font-size:13.5px;font-weight:700;letter-spacing:-.01em;line-height:1.4;color:var(--acc-ink)}
 .tg-l{display:grid;gap:2px;margin-top:4px;font-size:13.5px;line-height:1.5}
+.tg-rows{display:grid;gap:5px;margin-top:6px}
+.tg-rows > div{display:flex;gap:8px;align-items:baseline}
+.tg-rows span{flex:none;width:74px;font-size:13px;color:var(--mut)}
+.tg-rows b{flex:1;min-width:0;font-size:13.5px;font-weight:600;line-height:1.4}
 .tg-f{margin-top:8px;font-size:12.5px;color:var(--mut);line-height:1.45;font-style:italic}
 .tg-time{
   display:flex;align-items:center;justify-content:flex-end;gap:4px;margin-top:4px;
@@ -556,6 +593,8 @@ body{padding-bottom:104px}   /* під липку панель із кнопко
 .aside-total b{font-size:24px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
 .aside .go{width:100%;margin-top:14px}
 .aside .fine{text-align:center;margin-top:12px}
+.aside-demo{margin-top:14px;padding:0 10px}
+.aside-demo b{color:var(--ink);font-weight:700}
 
 /* ── широкий екран ──────────────────────────────────────────────────────── */
 @media (min-width:900px){

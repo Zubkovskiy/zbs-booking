@@ -1,93 +1,97 @@
 // Тексти повідомлень. ОДНЕ місце на весь проєкт.
 //
-// Це найважливіший файл продукту: саме ці три повідомлення ми продаємо.
-// Демо показує їх на екрані, бекенд шле їх насправді — з одного джерела,
-// щоб клієнт ніколи не отримав не те, що бачив у демо.
+// Це найважливіший файл продукту: саме ці повідомлення ми продаємо. Демо
+// показує їх на екрані, бекенд шле їх насправді — з одного джерела, щоб клієнт
+// ніколи не отримав не те, що бачив у демо.
 //
-// Кожне повідомлення описане ЧАСТИНАМИ (`*Parts`): заголовок, рядки, підпис.
-// Демо малює з них бабл месенджера, а `body` для бекенда збирається з тих
-// самих частин. Через це вигляд на екрані й надісланий текст не можуть
-// розійтись — міняєш частину, міняється і те, і те.
+// Кожне повідомлення описане ЧАСТИНАМИ: заголовок, рядки «ключ → значення»,
+// підпис. Так його читають з екрана телефона за секунду, а не вчитуються в
+// абзац. `body` для бекенда збирається з тих самих частин, тому вигляд і
+// надісланий текст розійтись не можуть.
 
-import { shortDate } from "./format.js";
+import { shortDate, servicePrice, totalPrice, durationLabel } from "./format.js";
 import { prettyPhone } from "./validate.js";
 
 /**
  * @typedef {Object} Booking
  * @property {string} name
- * @property {string} phone   +380XXXXXXXXX
- * @property {string} service
- * @property {string} unit    майстер / пост / лікар
+ * @property {string} phone    +380XXXXXXXXX
+ * @property {{name:string, price?:number|null, from?:boolean}[]} services
+ * @property {string} unit     майстер / пост / лікар
  * @property {Date}   date
- * @property {string} time    "14:30"
+ * @property {string} time     "14:30"
+ * @property {string} [car]    необов'язкове
+ * @property {boolean} [remind]
  */
 
-/**
- * @typedef {Object} Parts
- * @property {string} who     кому це йде, підпис над баблом
- * @property {string} sender  ім'я відправника в баблі
- * @property {string} avatar  одна літера на аватар
- * @property {string} title   жирний перший рядок
- * @property {string[]} lines рядки під заголовком
- * @property {string} [foot]  дрібний підпис під рискою
- * @property {string[]} [buttons] кнопки під повідомленням, якими клієнт відповідає боту
- */
+const names = (b) => b.services.map((s) => s.name).join(" + ");
+const when = (b) => `${shortDate(b.date)}, ${b.time}`;
+const total = (b) => {
+  const t = totalPrice(b.services);
+  return t.unit ? `${t.value} ₴` : t.value;
+};
 
-const join = (...lines) => lines.filter(Boolean).join("\n");
+/** Рядки в текст для бекенда: «Ключ: значення» по одному на рядок. */
+const body = (title, rows, note) =>
+  [title, ...rows.map(([k, v]) => `${k}: ${v}`), note].filter(Boolean).join("\n");
 
 /** Клієнту, одразу після запису. */
 export function clientConfirmationParts(biz, b) {
   return {
-    who: "Клієнту в Telegram",
-    sender: biz.name,
-    avatar: biz.name.slice(0, 1),
-    title: `Вас записано: ${b.service}`,
-    lines: [`${shortDate(b.date)}, ${b.time}`, biz.address],
-    // Не «напишіть нам», а «відповідайте»: у месенджері це один рух пальцем
-    // по тому самому повідомленню, і людині не треба шукати, куди писати.
-    foot: "Плани змінились? Відповідайте на це повідомлення — перенесемо або скасуємо.",
+    title: "Вас записано",
+    rows: [
+      ["Послуга", names(b)],
+      ["Коли", when(b)],
+      ["Адреса", biz.address],
+    ],
+    // Не «напишіть нам», а «напишіть тут»: у месенджері це один рух пальцем по
+    // тому самому повідомленню, і людині не треба шукати, куди писати.
+    note: "Плани змінились? Просто напишіть тут — перенесемо або скасуємо.",
   };
 }
 
 export function clientConfirmation(biz, b) {
   const p = clientConfirmationParts(biz, b);
-  return join(biz.name, p.title, ...p.lines, p.foot);
+  return body(`${biz.name}: ${p.title}`, p.rows, p.note);
 }
 
 /** Адміністратору, одразу. Усе, що треба, — без переходів кудись. */
 export function adminAlertParts(biz, b) {
   return {
-    who: "Адміністратору",
-    sender: "Бот записів",
-    avatar: "А",
-    title: "Новий запис",
-    lines: [`${b.name} · ${prettyPhone(b.phone)}`, b.service, `${shortDate(b.date)}, ${b.time} · ${b.unit}`],
+    title: `Новий запис · ${when(b)}`,
+    rows: [
+      ["Клієнт", `${b.name}, ${prettyPhone(b.phone)}`],
+      ["Послуга", `${names(b)} · ${durationLabel(biz.hours.stepMin)}`],
+      ["Авто", b.car || "не вказано"],
+      [biz.unitTitle ?? "Майстер", b.unit],
+      ["Сума", total(b)],
+    ],
   };
 }
 
 export function adminAlert(biz, b) {
   const p = adminAlertParts(biz, b);
-  return join(p.title, ...p.lines);
+  return body(p.title, p.rows);
 }
 
 /** Нагадування клієнту за добу. */
 export function clientReminderParts(biz, b) {
   return {
-    who: "Нагадування клієнту",
-    sender: biz.name,
-    avatar: biz.name.slice(0, 1),
-    title: `Нагадуємо: завтра о ${b.time} чекаємо вас у ${biz.name}.`,
-    lines: [biz.address],
-    foot: "Підтвердіть, будь ласка — щоб ми не тримали час даремно.",
+    title: "Нагадування",
+    lines: [
+      `Завтра о ${b.time} чекаємо вас у ${biz.name}.`,
+      `${names(b)} · ${durationLabel(biz.hours.stepMin)}`,
+    ],
+    note: "Підтвердіть, будь ласка, щоб ми не тримали час даремно.",
     // Дві кнопки замість «відповідайте текстом»: одне торкання, і адміністратор
     // одразу знає, чи звільняти годину.
-    buttons: ["Буду", "Не вийде"],
+    buttons: ["Буду", "Перенести"],
   };
 }
 
 export function clientReminder(biz, b) {
   const p = clientReminderParts(biz, b);
-  return join(p.title, ...p.lines, p.foot);
+  return [p.title, ...p.lines, p.note].join("\n");
 }
 
 /**
@@ -104,18 +108,27 @@ export function reminderAt(date, hour = 10, now = new Date()) {
   return d <= now ? new Date(now.getTime() + 60 * 60 * 1000) : d;
 }
 
+/** Хто з ким листується. Клієнт бачить бота закладу, власник — свій канал. */
+function chats(biz) {
+  return {
+    client: { name: biz.name, sub: "бот · онлайн", tag: "клієнту", avatar: biz.name.slice(0, 1) },
+    admin: { name: `${biz.name} · записи`, sub: `канал ${biz.kind ?? "закладу"}`, tag: "адміну", avatar: "С" },
+  };
+}
+
 /**
  * Усі повідомлення разом — у такому вигляді їх показує демо і шле бекенд.
  * Нагадування людина може вимкнути в останньому кроці; підтвердження їй і
  * сповіщення адміністратору — ні, без них запис просто не працює.
  */
 export function buildAll(biz, b, now = new Date()) {
+  const c = chats(biz);
   const all = [
-    { to: "client", channel: "telegram", when: "одразу", parts: clientConfirmationParts(biz, b), body: clientConfirmation(biz, b) },
-    { to: "admin", channel: "telegram", when: "одразу", parts: adminAlertParts(biz, b), body: adminAlert(biz, b) },
+    { to: "client", channel: "telegram", when: "одразу", chat: c.client, parts: clientConfirmationParts(biz, b), body: clientConfirmation(biz, b) },
+    { to: "admin", channel: "telegram", when: "одразу", chat: c.admin, parts: adminAlertParts(biz, b), body: adminAlert(biz, b) },
   ];
   if (b.remind !== false) {
-    all.push({ to: "client", channel: "telegram", when: reminderAt(b.date, 10, now), parts: clientReminderParts(biz, b), body: clientReminder(biz, b) });
+    all.push({ to: "client", channel: "telegram", when: reminderAt(b.date, 10, now), chat: c.client, parts: clientReminderParts(biz, b), body: clientReminder(biz, b) });
   }
   return all;
 }

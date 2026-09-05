@@ -10,7 +10,10 @@ import { stepStates, activeStep, openStep, STEP_HINT } from "../src/core/guide.j
 import { stepScrollTop, scrollDuration, easeInOut } from "../src/core/scroll.js";
 
 const HOURS = { from: 9, to: 12, stepMin: 60 };
-const BIZ = { name: "Мега-Сервіс", address: "вул. Москаленка, 20" };
+const BIZ = {
+  name: "Мега-Сервіс", kind: "СТО", address: "вул. Москаленка, 20",
+  unitTitle: "Майстер", hours: { from: 9, to: 18, stepMin: 60 },
+};
 const never = () => false;
 const always = () => true;
 
@@ -150,8 +153,8 @@ test("ім'я: обрізаємо пробіли, не пускаємо поро
 const BOOKING = {
   name: "Богдан",
   phone: "+380671112233",
-  service: "Комп'ютерна діагностика",
-  unit: "Пост 1 · Андрій",
+  services: [{ name: "Комп'ютерна діагностика", price: 600 }],
+  unit: "Андрій Бондар",
   date: new Date(2026, 7, 31),
   time: "11:00",
 };
@@ -163,10 +166,23 @@ test("підтвердження клієнту містить усе, що йо
   }
 });
 
-test("адміністратор бачить телефон у читабельному вигляді", () => {
+test("адміністратор бачить телефон, авто і суму", () => {
   const t = adminAlert(BIZ, BOOKING);
   assert.ok(t.includes("+380 67 111 22 33"));
   assert.ok(t.includes("Богдан"));
+  assert.ok(t.includes("Авто: не вказано"), "порожнє авто має бути названо явно");
+  assert.ok(t.includes("600 ₴"), "сума йде адміністратору");
+  assert.ok(adminAlert(BIZ, { ...BOOKING, car: "Skoda Octavia" }).includes("Авто: Skoda Octavia"));
+});
+
+test("кілька послуг ідуть одним записом і однією сумою", () => {
+  const two = {
+    ...BOOKING,
+    services: [{ name: "Діагностика", price: 600 }, { name: "Шиномонтаж", price: 120, from: true }],
+  };
+  assert.ok(clientConfirmation(BIZ, two).includes("Діагностика + Шиномонтаж"));
+  // Одна складова приблизна — уся сума приблизна, інакше вона бреше точністю.
+  assert.ok(adminAlert(BIZ, two).includes("від 720 ₴"));
 });
 
 test("нагадування ставиться за добу на 10:00", () => {
@@ -261,39 +277,48 @@ test("розбивка на частини не змінила жодного с
   assert.equal(
     all[0].body,
     [
-      "Мега-Сервіс",
-      "Вас записано: Комп'ютерна діагностика",
-      "31 сер, 11:00",
-      "вул. Москаленка, 20",
-      "Плани змінились? Відповідайте на це повідомлення — перенесемо або скасуємо.",
+      "Мега-Сервіс: Вас записано",
+      "Послуга: Комп'ютерна діагностика",
+      "Коли: 31 сер, 11:00",
+      "Адреса: вул. Москаленка, 20",
+      "Плани змінились? Просто напишіть тут — перенесемо або скасуємо.",
     ].join("\n"),
   );
 
   assert.equal(
     all[1].body,
-    ["Новий запис", "Богдан · +380 67 111 22 33", "Комп'ютерна діагностика", "31 сер, 11:00 · Пост 1 · Андрій"].join("\n"),
+    [
+      "Новий запис · 31 сер, 11:00",
+      "Клієнт: Богдан, +380 67 111 22 33",
+      "Послуга: Комп'ютерна діагностика · 1 год",
+      "Авто: не вказано",
+      "Майстер: Андрій Бондар",
+      "Сума: 600 ₴",
+    ].join("\n"),
   );
 
   assert.equal(
     all[2].body,
     [
-      "Нагадуємо: завтра о 11:00 чекаємо вас у Мега-Сервіс.",
-      "вул. Москаленка, 20",
-      "Підтвердіть, будь ласка — щоб ми не тримали час даремно.",
+      "Нагадування",
+      "Завтра о 11:00 чекаємо вас у Мега-Сервіс.",
+      "Комп'ютерна діагностика · 1 год",
+      "Підтвердіть, будь ласка, щоб ми не тримали час даремно.",
     ].join("\n"),
   );
 });
 
 test("у кожного повідомлення є частини, з яких демо малює бабл", () => {
   for (const m of buildAll(BIZ, BOOKING)) {
-    assert.ok(m.parts.who, "має бути підпис, кому це йде");
-    assert.ok(m.parts.sender, "має бути відправник");
-    assert.equal(m.parts.avatar.length, 1, "аватар — одна літера");
+    assert.ok(m.chat.name, "має бути назва переписки");
+    assert.ok(m.chat.tag, "має бути позначка, чий це екран");
+    assert.equal(m.chat.avatar.length, 1, "аватар — одна літера");
     assert.ok(m.parts.title.length > 3);
-    assert.ok(Array.isArray(m.parts.lines) && m.parts.lines.length > 0);
+    const shown = [...(m.parts.rows ?? []).map(([, v]) => v), ...(m.parts.lines ?? [])];
+    assert.ok(shown.length > 0, "бабл не може бути порожнім");
     // Усе, що показує бабл, має бути і в тексті, який реально надсилається.
     assert.ok(m.body.includes(m.parts.title));
-    for (const line of m.parts.lines) assert.ok(m.body.includes(line), `рядок загубився: ${line}`);
+    for (const v of shown) assert.ok(m.body.includes(v), `рядок загубився: ${v}`);
   }
 });
 
@@ -379,7 +404,7 @@ test("на кожен крок є своя підказка", () => {
 
 test("нагадування дає кнопки, якими клієнт відповідає боту", () => {
   const [confirm, admin, reminder] = buildAll(BIZ, BOOKING);
-  assert.deepEqual(reminder.parts.buttons, ["Буду", "Не вийде"]);
+  assert.deepEqual(reminder.parts.buttons, ["Буду", "Перенести"]);
   // Кнопки доречні тільки там, де від клієнта чекають відповіді.
   assert.equal(confirm.parts.buttons, undefined);
   assert.equal(admin.parts.buttons, undefined);
