@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { dayKey, hashPercent, buildSlots, countFree, nextDays, bestDayIndex, monthGrid, monthIndex, groupByPartOfDay, slotStarts, countStarts, ticketCode } from "../src/core/schedule.js";
+import { dayKey, hashPercent, buildSlots, countFree, nextDays, bestDayIndex, monthGrid, monthIndex, groupByPartOfDay, slotStarts, countStarts, visitMinutes, slotsNeeded, ticketCode } from "../src/core/schedule.js";
 import { plural, shortDate, dayLabel, relDayLabel, relLongDayLabel, longDate, dayWithWeekday, durationLabel, splitPrice, monthTitle, freeLabel, freeDaysLabel, busyReason } from "../src/core/format.js";
 import { icsEvent, mapsLink } from "../src/core/calendar.js";
 import { normalizePhone, prettyPhone, normalizeName, localPhone } from "../src/core/validate.js";
@@ -637,4 +637,17 @@ test("підставлений браузером номер втрачає ко
   assert.equal(localPhone("067 111"), "067 111");
   assert.equal(localPhone("0637781144"), "0637781144");
   assert.equal(localPhone(""), "");
+});
+
+test("тривалість візиту — сума послуг, а слотів під неї завжди ціле число", () => {
+  assert.equal(visitMinutes([{ dur: 90 }, { dur: 45 }], 60), 135);
+  assert.equal(visitMinutes([{ dur: 45 }], 60), 45);
+  assert.equal(visitMinutes([{}, {}], 60), 120, "без своєї тривалості — один слот");
+  assert.equal(visitMinutes([], 60), 60, "порожній вибір рахуємо як одну годину");
+
+  // Півтори години в годинній сітці займають ДВІ: третину слота не продаси.
+  assert.equal(slotsNeeded(90, 60), 2);
+  assert.equal(slotsNeeded(45, 60), 1);
+  assert.equal(slotsNeeded(135, 60), 3);
+  assert.equal(slotsNeeded(120, 60), 2, "рівно дві години — це дві, а не три");
 });

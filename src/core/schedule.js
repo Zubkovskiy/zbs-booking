@@ -49,6 +49,25 @@ export function ticketCode(seed) {
 }
 
 /**
+ * Скільки хвилин триває візит цілком. Послуга без своєї тривалості займає
+ * рівно один слот — це чесний мінімум, а не припущення.
+ * @param {{dur?:number}[]} services
+ * @param {number} stepMin довжина слота в закладі
+ */
+export function visitMinutes(services, stepMin) {
+  if (!services.length) return stepMin;
+  return services.reduce((n, s) => n + (s.dur ?? stepMin), 0);
+}
+
+/**
+ * Скільки слотів під це треба тримати. Півтори години в закладі з годинною
+ * сіткою займають ДВІ години: третину слота не продаси нікому іншому.
+ */
+export function slotsNeeded(minutes, stepMin) {
+  return Math.max(1, Math.ceil(minutes / stepMin));
+}
+
+/**
  * З яких годин можна почати візит, що триває `need` слотів поспіль.
  *
  * Дві послуги — це дві години, і почати їх о 17:00, коли заклад зачиняється о

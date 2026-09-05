@@ -6,7 +6,7 @@
 // Перемальовування вбивало кожен перехід (нова кнопка не має від чого
 // анімуватись), губило фокус із клавіатури і давало смиканину на кожен клік.
 
-import { nextDays, bestDayIndex, dayKey, monthGrid, monthIndex, isWorkday, groupByPartOfDay, slotStarts, countStarts, ticketCode } from "../core/schedule.js";
+import { nextDays, bestDayIndex, dayKey, monthGrid, monthIndex, isWorkday, groupByPartOfDay, slotStarts, countStarts, visitMinutes, slotsNeeded, ticketCode } from "../core/schedule.js";
 import { shortDate, dayWithWeekday, relLongDayLabel, monthTitle, freeLabel, busyReason, durationLabel, servicePrice, totalPrice, plural, WEEKDAY_HEAD } from "../core/format.js";
 import { icsEvent, mapsLink } from "../core/calendar.js";
 import { normalizeName, normalizePhone, prettyPhone, localPhone } from "../core/validate.js";
@@ -17,10 +17,11 @@ import { createScroller, glideToStep, morphHeight, calmMotion } from "./motion.j
     записі було куди гортати, а не впертись у край вікна. */
 const DAYS_AHEAD = 90;
 
-const TICK = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+const TICK = '<svg class="i-tick" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
 const NUM_TICK = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
 const BIG_TICK = '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
 const READ_TICK = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m1 13 4 4L14 8"/><path d="m9 13 4 4L22 8"/></svg>';
+const PLUS = '<svg class="i-plus" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
 const STAR = '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><path d="m12 2 2.9 6.3 6.6.8-4.9 4.6 1.3 6.8L12 17.3 6.1 20.5l1.3-6.8L2.5 9.1l6.6-.8z"/></svg>';
 const ANY_UNIT = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 20v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1"/><circle cx="7.5" cy="7" r="3.2"/><path d="M16 15.2a4 4 0 0 1 6 3.5V20"/><circle cx="16.8" cy="7.4" r="2.8"/></svg>';
 
@@ -80,6 +81,7 @@ export function mountBooking(root, business, adapter) {
     time: null,
     open: null,      // крок, який людина відкрила сама; null — ведемо по порядку
     remind: true,    // нагадування за добу; людина може вимкнути
+    notice: null,    // чому в неї щойно зняли обраний день або час
     sending: false,
   };
 
@@ -123,20 +125,26 @@ export function mountBooking(root, business, adapter) {
   /* Кожна послуга займає один слот. Дві послуги — дві години поспіль, і день,
      у якому вільні години розкидані поодинці, для такого запису не годиться.
      Тому «вільно» рахується не по годинах, а по МОЖЛИВИХ ПОЧАТКАХ. */
-  const need = () => Math.max(1, state.svcs.length);
-  const minutes = () => business.hours.stepMin * need();
+  const minutes = () => visitMinutes(chosen(), business.hours.stepMin);
+  const need = () => slotsNeeded(minutes(), business.hours.stepMin);
   const startsOf = (day) => slotStarts(day.slots, need());
   const freeOf = (day) => countStarts(day.slots, need());
 
-  /** Вибір міг застаріти: додали другу послугу — і обрана година вже не влазить. */
+  /**
+   * Вибір міг застаріти: додали другу послугу — і обрана година вже не влазить.
+   * Мовчки зняти її не можна: людина не зрозуміє, куди подівся її день. Тому
+   * знімаємо і ТУТ ЖЕ кажемо причину.
+   */
   function reconcile() {
     const day = current();
     if (!day) return;
     const starts = startsOf(day);
     if (!starts.length) {
+      state.notice = `${dayWithWeekday(day.date, today)} не вміщає ${durationLabel(minutes())} поспіль — оберіть інший день.`;
       state.key = null;
       state.time = null;
     } else if (state.time && !starts.some((s) => s.time === state.time)) {
+      state.notice = `О ${state.time} вже не влазить ${durationLabel(minutes())} — оберіть інший час.`;
       state.time = null;
     }
   }
@@ -169,6 +177,7 @@ export function mountBooking(root, business, adapter) {
   }
 
   function pickDay(day) {
+    state.notice = null;
     state.key = day.key;
     state.time = null;
     state.view = { y: day.date.getFullYear(), m: day.date.getMonth() };
@@ -182,6 +191,15 @@ export function mountBooking(root, business, adapter) {
   function buildService() {
     const box = $("services");
 
+    // Два способи вибору неочевидні, поки про них не сказати. Рядок — «тільки
+    // це», кружок — «і це теж». Кажемо один раз, над самим списком.
+    const how = document.createElement("p");
+    how.className = "how";
+    how.innerHTML =
+      "<span>Торкніться послуги — оберете тільки її.</span>" +
+      `<span>${PLUS} — додати кілька послуг в один візит.</span>`;
+    box.append(how);
+
     business.services.forEach((s, i) => {
       // Рядок і кружок — дві різні кнопки, і це не примха розмітки: у кнопку
       // не можна вкласти кнопку, а поведінка в них різна. Рядок каже «хочу
@@ -193,7 +211,7 @@ export function mountBooking(root, business, adapter) {
           '<span class="t-txt"><span class="t-name"></span><span class="t-note"></span></span>' +
           '<span class="price"><b></b><span></span></span>' +
         '</button>' +
-        `<button class="dot" type="button" aria-pressed="false">${TICK}</button>`;
+        `<button class="dot" type="button" aria-pressed="false">${PLUS}${TICK}</button>`;
 
       const name = row.querySelector(".t-name");
       name.textContent = s.name;
@@ -203,7 +221,8 @@ export function mountBooking(root, business, adapter) {
         tag.textContent = "хіт";
         name.append(" ", tag);
       }
-      row.querySelector(".t-note").textContent = s.note ?? durationLabel(business.hours.stepMin);
+      row.querySelector(".t-note").textContent =
+        [s.note, durationLabel(s.dur ?? business.hours.stepMin)].filter(Boolean).join(" · ");
       const price = servicePrice(s);
       row.querySelector(".price b").textContent = price.value;
       row.querySelector(".price span").textContent = price.unit;
@@ -306,6 +325,9 @@ export function mountBooking(root, business, adapter) {
     const first = days[0];
     const last = days[days.length - 1];
     const shown = monthIndex(y, m);
+
+    $("day-note").textContent = state.notice ?? "";
+    $("day-note").hidden = !state.notice;
 
     $("month").textContent = monthTitle(y, m);
     $("prev").disabled = shown <= monthIndex(first.date.getFullYear(), first.date.getMonth());
@@ -453,6 +475,7 @@ export function mountBooking(root, business, adapter) {
             if (canStart) {
               b.dataset.k = `slot-${s.time}`;
               b.onclick = () => {
+                state.notice = null;
                 state.time = s.time;
                 state.open = null;
                 paint();

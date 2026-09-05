@@ -190,6 +190,19 @@ body{padding-bottom:104px}   /* під липку панель із кнопко
   flex:1;min-width:0;display:flex;align-items:center;gap:12px;
   text-align:left;color:inherit;cursor:pointer;
 }
+/* Підказка про два способи вибору. Стоїть над списком, бо після першого ж
+   дотику вона вже не потрібна — але до нього її нема де прочитати. */
+.how{
+  display:grid;gap:5px;margin:0 0 12px;
+  font-size:12.5px;line-height:1.5;color:var(--mut);
+}
+.how span{display:flex;align-items:center;gap:6px}
+.how svg{
+  display:inline-block;vertical-align:-2px;color:var(--acc-ink);
+  box-shadow:inset 0 0 0 1.5px var(--line);border-radius:var(--r-pill);
+  width:20px;height:20px;padding:3px;
+}
+
 .hit{
   display:inline-block;vertical-align:2px;margin-left:2px;
   font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
@@ -217,8 +230,12 @@ body{padding-bottom:104px}   /* під липку панель із кнопко
   transition:background var(--t-swap) var(--ease),box-shadow var(--t-swap) var(--ease);
 }
 .opt.sel .dot{background:var(--acc);box-shadow:none}
-.dot svg{display:block;opacity:0;transition:opacity var(--t-swap) var(--ease)}
-.opt.sel .dot svg{opacity:1}
+/* Плюс до вибору, галочка після: сам знак і каже, що кнопка робить. */
+.dot svg{display:block;transition:opacity var(--t-swap) var(--ease)}
+.dot .i-tick{display:none}
+.dot .i-plus{color:var(--mut)}
+.opt.sel .dot .i-plus{display:none}
+.opt.sel .dot .i-tick{display:block}
 /* Аватар поста: ініціали, а для «будь-якого вільного» — значок. */
 .av{
   flex:none;width:40px;height:40px;border-radius:var(--r-pill);
@@ -238,6 +255,14 @@ body{padding-bottom:104px}   /* під липку панель із кнопко
 .rate svg{display:block;color:var(--warn)}
 
 /* ── крок 3: день ───────────────────────────────────────────────────────── */
+/* Пояснення, чому щойно зник обраний день. Жовте, а не червоне: нічого не
+   зламалось, просто візит став довшим. */
+.notice{
+  margin:0 0 12px;padding:10px 12px;border-radius:var(--r-item);
+  background:var(--warn-soft);border:1px solid var(--warn-line);
+  font-size:12.5px;line-height:1.45;color:var(--ink);
+}
+
 .cal-nav{display:flex;align-items:center;gap:8px;margin-bottom:12px}
 .cal-month{flex:1;font-size:15px;font-weight:700;letter-spacing:-.01em}
 .nav{
