@@ -164,6 +164,11 @@ body{padding-bottom:104px}   /* під липку панель із кнопко
   transition:color var(--t-swap) var(--ease);
 }
 .step.done .pick{color:var(--ink);font-weight:600}
+/* Ім'я і телефон — різні речі, і на вузькому рядку вони читаються швидше
+   рознесеними по краях, ніж через розділювач посередині. */
+.pick.split{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.pick.split > :first-child{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.pick.split > :last-child{flex:none;color:var(--mut);font-weight:500;font-variant-numeric:tabular-nums}
 .edit{
   flex:none;display:none;font-size:13px;font-weight:700;color:var(--acc-ink);padding:8px 4px;
 }
@@ -490,14 +495,47 @@ input:-webkit-autofill:focus{
   .step-btn:not([disabled]):hover .edit{text-decoration:underline}
 }
 
+/* ── галочка, що прилітає на місце ──────────────────────────────────────
+   Кнопку тиснуть унизу екрана, а результат живе вгорі другого. Щоб ці двоє
+   не здавались різними подіями, галочка спершу займає весь екран, а потім
+   ЛЕТИТЬ у своє місце на екрані підтвердження — це той самий предмет, просто
+   переїхав. Політ рахує WAAPI по двох виміряних прямокутниках. */
+.veil{
+  position:fixed;inset:0;z-index:60;display:grid;place-items:center;
+  background:var(--bg);opacity:0;transition:opacity .22s var(--ease);
+}
+.veil.in{opacity:1}
+.veil-ok{
+  width:132px;height:132px;border-radius:var(--r-pill);
+  display:grid;place-items:center;background:var(--acc-soft);color:var(--acc-ink);
+  transform:scale(.72);opacity:0;
+  transition:transform .42s var(--ease),opacity .26s var(--ease);
+}
+.veil.in .veil-ok{transform:none;opacity:1}
+.veil-ok svg path{stroke-dasharray:26;stroke-dashoffset:26;animation:draw .46s .16s var(--ease) forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+/* Поки галочка летить, екран під нею вже зверстаний, але ще не показаний. */
+#done.arriving{opacity:0;animation:none}
+
 /* ── екран підтвердження ────────────────────────────────────────────────── */
 #done{padding:8px 0 0;animation:fade-up .34s var(--ease) both}
 @keyframes fade-up{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .done-top{text-align:center;padding:14px 0 0}
+/* Кільце тут своє. Спільні з пульсом кружка кадри `ring` уже гасять елемент
+   до нуля — велика галочка на них просто зникала. */
 .big-ok{
-  width:76px;height:76px;border-radius:var(--r-pill);margin:0 auto;
+  position:relative;width:76px;height:76px;border-radius:var(--r-pill);margin:0 auto;
   display:grid;place-items:center;background:var(--acc-soft);color:var(--acc-ink);
-  animation:pop .35s var(--ease) both,ring 1.2s ease .3s;
+}
+.big-ok::after{
+  content:"";position:absolute;inset:0;border-radius:inherit;
+  border:2px solid var(--acc);opacity:0;
+}
+#done:not(.arriving) .big-ok{animation:pop .4s var(--ease) both}
+#done:not(.arriving) .big-ok::after{animation:halo 1.1s .25s var(--ease) both}
+@keyframes halo{
+  from{transform:scale(1);opacity:.5}
+  to{transform:scale(1.7);opacity:0}
 }
 @keyframes pop{from{opacity:0;transform:scale(.86)}to{opacity:1;transform:scale(1)}}
 #done h2{

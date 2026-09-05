@@ -19,6 +19,7 @@ const DAYS_AHEAD = 90;
 
 const TICK = '<svg class="i-tick" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
 const NUM_TICK = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+const XL_TICK = '<svg width="62" height="62" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
 const BIG_TICK = '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
 const READ_TICK = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m1 13 4 4L14 8"/><path d="m9 13 4 4L22 8"/></svg>';
 const PLUS = '<svg class="i-plus" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
@@ -518,7 +519,20 @@ export function mountBooking(root, business, adapter) {
     mark("p-unit", unit ? unit.name : "", 1);
     mark("p-day", day ? dayWithWeekday(day.date, today) : "", 2);
     mark("p-time", state.time ?? "", 3);
-    mark("p-name", [name.ok ? name.value : null, phone.ok ? prettyPhone(phone.value) : null].filter(Boolean).join(" · "), 4);
+    // Ім'я ліворуч, номер праворуч — а не через розділювач упритул.
+    const who = $("p-name");
+    who.textContent = "";
+    if (name.ok || phone.ok) {
+      who.className = "pick split";
+      const a = document.createElement("span");
+      a.textContent = name.ok ? name.value : "без імені";
+      const b = document.createElement("span");
+      b.textContent = phone.ok ? prettyPhone(phone.value) : "";
+      who.append(a, b);
+    } else {
+      who.className = "pick";
+      who.textContent = STEP_HINT[4];
+    }
 
     const t = totalPrice(svcs);
     const total = t.unit ? `${t.value} ₴` : t.value;
@@ -767,8 +781,10 @@ export function mountBooking(root, business, adapter) {
         remind: state.remind,
       });
       scroller.stop();
-      renderDone(day, res, phone.value);
-      window.scrollTo({ top: 0, behavior: "auto" });
+      celebrate(() => {
+        renderDone(day, res, phone.value);
+        window.scrollTo({ top: 0, behavior: "auto" });
+      });
     } catch {
       state.sending = false;
       paintBar();
@@ -777,6 +793,54 @@ export function mountBooking(root, business, adapter) {
   }
   $("go").onclick = go;
   $("go-wide").onclick = go;
+
+  /**
+   * Галочка на весь екран, яка потім летить у своє місце на екрані
+   * підтвердження.
+   *
+   * Кнопку тиснуть унизу однієї сторінки, а результат живе вгорі іншої. Без
+   * цього польоту це дві різні події, між якими сторінка просто підмінилась.
+   * Тому предмет один: спершу він завбільшки з екран, далі переїжджає туди, де
+   * має стояти, і аж тоді проявляється все решта.
+   */
+  function celebrate(then) {
+    if (calm) {                 // просили менше руху — без вистав
+      then();
+      return;
+    }
+
+    const veil = document.createElement("div");
+    veil.className = "veil";
+    veil.innerHTML = `<div class="veil-ok">${XL_TICK}</div>`;
+    document.body.append(veil);
+    const flying = veil.querySelector(".veil-ok");
+    requestAnimationFrame(() => veil.classList.add("in"));
+
+    setTimeout(() => {
+      // Екран підтвердження вже зверстаний, але ще прозорий: нам потрібні його
+      // координати, а не його поява.
+      $("done").classList.add("arriving");
+      then();
+
+      const from = flying.getBoundingClientRect();
+      const to = $("done").querySelector(".big-ok").getBoundingClientRect();
+      const k = to.width / from.width;
+      const dx = to.left + to.width / 2 - (from.left + from.width / 2);
+      const dy = to.top + to.height / 2 - (from.top + from.height / 2);
+
+      const fly = flying.animate(
+        [{ transform: "none" }, { transform: `translate(${dx}px, ${dy}px) scale(${k})` }],
+        { duration: 520, easing: "cubic-bezier(.37,0,.63,1)", fill: "forwards" },
+      );
+      veil.style.transition = "opacity .3s var(--ease) .12s";
+      veil.style.background = "transparent";
+
+      fly.onfinish = () => {
+        $("done").classList.remove("arriving");   // тепер решта проявляється сама
+        veil.remove();
+      };
+    }, 620);
+  }
 
   /* ── екран підтвердження ─────────────────────────────────────────────── */
 
