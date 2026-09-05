@@ -62,7 +62,10 @@ export function adminAlertParts(biz, b) {
   return {
     title: `Новий запис · ${when(b)}`,
     rows: [
-      ["Клієнт", `${b.name}, ${prettyPhone(b.phone)}`],
+      ["Клієнт", b.name],
+      // Номер окремим рядком: адміністратор із нього дзвонить, і шукати його
+      // всередині рядка з іменем — зайва робота щоразу.
+      ["Телефон", prettyPhone(b.phone)],
       ["Послуга", `${names(b)} · ${dur(b)}`],
       ["Авто", b.car || "не вказано"],
       [biz.unitTitle ?? "Майстер", b.unit],

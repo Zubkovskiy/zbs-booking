@@ -47,10 +47,8 @@ body{padding-bottom:104px}   /* під липку панель із кнопко
    послуги. Тло непрозоре з розмиттям, інакше картки просвічують крізь неї. */
 .top{
   position:sticky;top:0;z-index:30;
-  transition:none;
   margin:-14px -14px 0;padding:14px 16px 12px;
-  background:var(--bar-bg);border-bottom:1px solid var(--line);
-  backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  background:var(--bg);border-bottom:1px solid var(--line);
 }
 .flow{padding-top:14px}
 .brand{display:flex;align-items:center;gap:10px}
@@ -129,14 +127,25 @@ body{padding-bottom:104px}   /* під липку панель із кнопко
    зроблено, а що ні, ще до того, як людина прочитає підписи. */
 .step.open .num{
   background:var(--acc-soft);color:var(--acc-ink);
-  box-shadow:inset 0 0 0 1.5px var(--acc-line);animation:ring 2.4s ease-out infinite;
+  box-shadow:inset 0 0 0 1.5px var(--acc-line);
 }
-.num.ok{background:var(--acc);color:var(--on-acc);box-shadow:none;animation:none}
+/* Пульс навколо активного кружка. Раніше це була анімація box-shadow — вона
+   перемальовує область щокадру, і на телефоні цей безкінечний репейнт крав
+   кадри саме тоді, коли поруч згортався крок. Тепер кільце — окремий шар, який
+   лише масштабується й гасне: це рахує композитор, малювання нуль. */
+.num{position:relative}
+.step.open:not(.done) .num::after{
+  content:"";position:absolute;inset:0;border-radius:inherit;
+  border:1.5px solid var(--acc);
+  animation:ring 2.4s var(--ease) infinite;
+  will-change:transform,opacity;
+}
+.num.ok{background:var(--acc);color:var(--on-acc);box-shadow:none}
 .num svg{display:block;animation:tick .34s cubic-bezier(.34,1.56,.64,1) both}
 @keyframes ring{
-  0%{box-shadow:0 0 0 0 var(--ring)}
-  70%{box-shadow:0 0 0 14px transparent}
-  100%{box-shadow:0 0 0 0 transparent}
+  0%{transform:scale(1);opacity:.55}
+  70%{transform:scale(1.85);opacity:0}
+  100%{transform:scale(1.85);opacity:0}
 }
 @keyframes tick{
   0%{opacity:0;transform:scale(.3) rotate(-14deg)}
@@ -167,7 +176,10 @@ body{padding-bottom:104px}   /* під липку панель із кнопко
   transition:grid-template-rows var(--t-fold) var(--ease),opacity var(--t-swap) var(--ease);
 }
 .step.open .body{grid-template-rows:1fr;opacity:1}
-.body-in{min-height:0;overflow:hidden}
+/* contain обіцяє браузеру, що зміна висоти обрізача не міняє розкладку
+   всередині нього. Без цієї обіцянки кожен кадр згортання перераховує всі
+   десять карток послуг заново. */
+.body-in{min-height:0;overflow:hidden;contain:layout paint}
 /* Згорнутий крок не має бути в табуляції — інакше фокус їде в невидиме. */
 .step:not(.open) .body{
   visibility:hidden;
@@ -427,11 +439,21 @@ input:-webkit-autofill:focus{
 .sig a:hover{text-decoration:underline}
 
 /* ── липка панель із ціною і кнопкою ────────────────────────────────────── */
+/* Тло непрозоре, без backdrop-filter. Розмиття тут коштувало найдорожче з
+   усього: два зафіксовані шари з blur перемальовують півекрана на КОЖНОМУ
+   кадрі прокрутки й згортання. На десктопі цього не видно, на телефоні саме
+   через це рух і здавався менш приємним. */
 .bar{
   position:fixed;left:0;right:0;bottom:0;z-index:40;
   padding:10px 14px calc(12px + env(safe-area-inset-bottom));
-  background:var(--bar-bg);border-top:1px solid var(--line);
-  backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  background:var(--bg);border-top:1px solid var(--line);
+}
+/* На великому екрані блюр по кишені — там він і лишається. */
+@media (min-width:900px) and (hover:hover){
+  .top{
+    background:var(--bar-bg);
+    backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  }
 }
 .bar-in{max-width:470px;margin:0 auto;display:flex;align-items:center;gap:12px}
 .bar-sum{flex:none;min-width:74px}
