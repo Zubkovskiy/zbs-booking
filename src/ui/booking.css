@@ -47,6 +47,7 @@ body{padding-bottom:104px}   /* під липку панель із кнопко
    послуги. Тло непрозоре з розмиттям, інакше картки просвічують крізь неї. */
 .top{
   position:sticky;top:0;z-index:30;
+  transition:none;
   margin:-14px -14px 0;padding:14px 16px 12px;
   background:var(--bar-bg);border-bottom:1px solid var(--line);
   backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
@@ -88,6 +89,11 @@ body{padding-bottom:104px}   /* під липку панель із кнопко
 }
 @keyframes shine{from{transform:translateX(-120%)}to{transform:translateX(320%)}}
 .plab{flex:none;font-size:12px;font-weight:700;color:var(--mut);font-variant-numeric:tabular-nums}
+
+/* На екрані підтвердження шапці нема за чим стежити: кроків більше немає, а
+   смужка прогресу вже повна. Тому вона просто верх сторінки. */
+.shell.finished .top{position:static;background:none;border-bottom:0;backdrop-filter:none;-webkit-backdrop-filter:none}
+.shell.finished .progress{display:none}
 
 /* ── крок ───────────────────────────────────────────────────────────────── */
 /* Елементи grid за замовчуванням не вміють бути вужчими за свій вміст, тому
@@ -447,6 +453,11 @@ input:-webkit-autofill:focus{
 .slot:not([disabled]):active,.nav:not([disabled]):active,.again:active{transform:scale(.977)}
 .go:not([disabled]):active{transform:scale(.99)}
 @media (hover:hover){
+  /* Плюс має відповідати на наведення сам, окремо від рядка: це друга кнопка
+     з іншою дією, і ця різниця має бути відчутна ще до натискання. */
+  .dot:hover{box-shadow:inset 0 0 0 1.5px var(--acc);background:var(--acc-soft)}
+  .dot:hover .i-plus{color:var(--acc-ink)}
+  .opt.sel .dot:hover{background:var(--acc)}
   .opt:hover,.switch:hover,.cell.free:hover,
   .slot:not([disabled]):hover,.nav:not([disabled]):hover,.call:hover{
     border-color:var(--acc);transform:translateY(-1px);
@@ -475,12 +486,17 @@ input:-webkit-autofill:focus{
 
 /* Талон. Метафора паперового корінця тримає весь екран: те, що можна показати
    на стійці, читається як «запис існує», а не як повідомлення про успіх. */
+/* Талон із вирізами по боках. Вирізи не накладаємо зверху — їх ВИРІЗАЄ сам
+   фон смужки: два радіальні градієнти, у яких півколо прозоре, і крізь нього
+   видно тло сторінки. Через це в картки не може бути власного фону й рамки —
+   інакше вони затягнули б виріз назад. Тому колір малюють половинки: шапка
+   своїм, низ своїм. */
 .ticket{
-  margin-top:22px;border-radius:22px;background:var(--card);border:1px solid var(--line);
-  box-shadow:var(--shadow-lg);overflow:hidden;
+  margin-top:22px;border-radius:22px;overflow:hidden;
+  filter:drop-shadow(0 10px 28px rgba(0,0,0,.45));
   animation:fade-up .34s var(--ease) .06s both;
 }
-.ticket-h{padding:18px 18px 16px;background:var(--acc-soft);border-bottom:1px solid var(--line)}
+.ticket-h{padding:18px 18px 16px;background:var(--acc-soft)}
 .ticket-top{display:flex;align-items:flex-start;gap:12px}
 .eyebrow{
   font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--acc-ink);
@@ -500,11 +516,14 @@ input:-webkit-autofill:focus{
   font-size:12px;font-weight:700;padding:6px 10px;border-radius:var(--r-pill);
   background:var(--card);border:1px solid var(--line);
 }
-/* Перфорація — сам пунктир, без вирізів по краях. Вирізи тут обрізались
-   рамкою картки й читались як дві випадкові рисочки збоку. */
-.perf{position:relative;height:20px;background:var(--card)}
-.perf b{position:absolute;left:18px;right:18px;top:9px;border-top:1.5px dashed var(--line)}
-.ticket-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 14px;padding:4px 18px 18px}
+.perf{
+  position:relative;height:22px;
+  background:
+    radial-gradient(circle 11px at 0 50%,transparent 11px,var(--card) 11.5px) left / 50% 100% no-repeat,
+    radial-gradient(circle 11px at 100% 50%,transparent 11px,var(--card) 11.5px) right / 50% 100% no-repeat;
+}
+.perf b{position:absolute;left:20px;right:20px;top:10px;border-top:1.5px dashed var(--line)}
+.ticket-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 14px;padding:4px 18px 18px;background:var(--card)}
 .ticket-grid .k{
   font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);
 }

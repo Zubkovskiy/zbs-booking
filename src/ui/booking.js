@@ -1051,6 +1051,7 @@ export function mountBooking(root, business, adapter) {
     $("flow").hidden = true;
     $("cta-bar").hidden = true;
     $("aside").hidden = true;
+    root.querySelector(".shell").classList.add("finished");
     box.hidden = false;
   }
 
