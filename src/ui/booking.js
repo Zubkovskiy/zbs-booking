@@ -586,9 +586,8 @@ export function mountBooking(root, business, adapter) {
   const stepEls = [...root.querySelectorAll(".step[data-step]")];
   const calm = calmMotion();
   const scroller = createScroller();
-  /** Скільки зверху з'їдає липка шапка. Липкого нічого немає, але правило
-      прокрутки вміє з нею жити, тому місце лишаємо. */
-  const topInset = () => 0;
+  /** Скільки зверху з'їдає липка шапка — під нею й рахується вільне місце. */
+  const topInset = () => root.querySelector(".top").getBoundingClientRect().height;
   let lastOpen = -1;
   let settled = false;
 
@@ -843,6 +842,8 @@ export function mountBooking(root, business, adapter) {
         const done = $("done");
         done.classList.add("flown");
         done.classList.remove("arriving");
+        // Галочка вже стоїть — тепер каскадом заходить решта.
+        done.classList.add("ready");
         requestAnimationFrame(() => veil.remove());
       };
     }, 620);
@@ -1123,6 +1124,9 @@ export function mountBooking(root, business, adapter) {
       note.innerHTML = "Це <b>демонстрація</b>. Справжній запис не створюється, повідомлення нікому не йдуть.";
       box.append(note);
     }
+
+    // Без польоту (менше руху або помилка) екран просто з'являється цілком.
+    if (!box.classList.contains("arriving")) box.classList.add("ready");
 
     $("flow").hidden = true;
     $("cta-bar").hidden = true;
