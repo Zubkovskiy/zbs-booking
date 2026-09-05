@@ -836,8 +836,14 @@ export function mountBooking(root, business, adapter) {
       veil.style.background = "transparent";
 
       fly.onfinish = () => {
-        $("done").classList.remove("arriving");   // тепер решта проявляється сама
-        veil.remove();
+        // Спершу показуємо справжню галочку — вона зараз піксель у піксель на
+        // місці тієї, що летіла, — і лише НАСТУПНИМ кадром прибираємо шар.
+        // Навпаки не можна: між зникненням однієї та появою іншої лишався б
+        // порожній кадр, і це читалось як блимання.
+        const done = $("done");
+        done.classList.add("flown");
+        done.classList.remove("arriving");
+        requestAnimationFrame(() => veil.remove());
       };
     }, 620);
   }
@@ -1102,7 +1108,13 @@ export function mountBooking(root, business, adapter) {
     again.type = "button";
     again.className = "again";
     again.textContent = "Пройти ще раз";
-    again.onclick = () => location.reload();
+    again.onclick = () => {
+      // Браузер сам відновлює місце прокрутки після перезавантаження, тому
+      // друга спроба починалась би з середини сторінки.
+      if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+      window.scrollTo(0, 0);
+      location.reload();
+    };
 
     box.append(top, renderTicket(day), acts, nextH, chats, again);
     if (!res.sent) {

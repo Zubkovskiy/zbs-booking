@@ -461,7 +461,9 @@ input:-webkit-autofill:focus{
   }
 }
 .bar-in{max-width:470px;margin:0 auto;display:flex;align-items:center;gap:12px}
-.bar-sum{flex:none;min-width:74px}
+/* Другий рядок ширший за суму, тому ліве вирівнювання робить блок рваним.
+   По центру вони читаються як одне ціле. На широкому екрані панелі немає. */
+.bar-sum{flex:none;min-width:74px;text-align:center}
 .bar-sum b{
   display:block;font-size:18px;font-weight:800;letter-spacing:-.02em;
   font-variant-numeric:tabular-nums;line-height:1.2;
@@ -531,8 +533,10 @@ input:-webkit-autofill:focus{
   content:"";position:absolute;inset:0;border-radius:inherit;
   border:2px solid var(--acc);opacity:0;
 }
-#done:not(.arriving) .big-ok{animation:pop .4s var(--ease) both}
-#done:not(.arriving) .big-ok::after{animation:halo 1.1s .25s var(--ease) both}
+/* Галочка вискакує тільки тоді, коли ПРИЛЬОТУ не було: після польоту вона вже
+   стоїть на місці, і повторна поява з нуля читається як блимання. */
+#done:not(.arriving):not(.flown) .big-ok{animation:pop .4s var(--ease) both}
+#done:not(.arriving) .big-ok::after{animation:halo 1.1s .1s var(--ease) both}
 @keyframes halo{
   from{transform:scale(1);opacity:.5}
   to{transform:scale(1.7);opacity:0}
