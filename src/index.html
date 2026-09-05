@@ -73,7 +73,6 @@
       </h2>
       <div class="body" id="body-3" role="region" aria-labelledby="h-3">
         <div class="body-in">
-          <div class="chips" id="quick"></div>
           <div class="cal-nav">
             <div class="cal-month" id="month" aria-live="polite"></div>
             <button class="nav" type="button" id="prev" aria-label="Попередній місяць">
@@ -86,8 +85,9 @@
           <div class="wd" id="wd"></div>
           <div class="grid" id="days"></div>
           <div class="legend">
+            <span><i class="lg-today"></i>сьогодні</span>
             <span><i class="lg-free"></i>є вільні місця</span>
-            <span><i class="lg-none"></i>вільних місць немає</span>
+            <span><i class="lg-none"></i>вільних немає</span>
           </div>
         </div>
       </div>
@@ -130,6 +130,13 @@
               <span class="tel"><b aria-hidden="true">+38</b><input id="ph" type="tel" inputmode="tel" placeholder="067 111 22 33" autocomplete="tel" enterkeyhint="done"></span>
               <span class="err" id="ph-err" role="alert" hidden><b aria-hidden="true">!</b><span></span></span>
             </label>
+            <button class="switch" type="button" id="remind" aria-pressed="true">
+              <span class="switch-txt">
+                <b>Нагадати про візит</b>
+                <span id="remind-sub"></span>
+              </span>
+              <span class="switch-track" aria-hidden="true"><i></i></span>
+            </button>
           </div>
         </div>
       </div>

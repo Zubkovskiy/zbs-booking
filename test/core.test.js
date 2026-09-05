@@ -532,3 +532,12 @@ test("тривалість візиту пишеться по-людськи", (
   assert.equal(durationLabel(90), "1 год 30 хв");
   assert.equal(durationLabel(120), "2 год");
 });
+
+test("вимкнене нагадування прибирає саме його, а не всі повідомлення", () => {
+  const off = buildAll(BIZ, { ...BOOKING, remind: false });
+  assert.deepEqual(off.map((m) => m.to), ["client", "admin"], "лишаються підтвердження і сповіщення");
+
+  const on = buildAll(BIZ, BOOKING);
+  assert.equal(on.length, 3, "без прапорця нагадування є за замовчуванням");
+  assert.equal(on[2].parts.buttons.length, 2);
+});

@@ -7,7 +7,7 @@
 // анімуватись), губило фокус із клавіатури і давало смиканину на кожен клік.
 
 import { nextDays, countFree, bestDayIndex, dayKey, monthGrid, monthIndex, isWorkday, groupByPartOfDay, ticketCode } from "../core/schedule.js";
-import { shortDate, dayWithWeekday, relLongDayLabel, monthTitle, freeLabel, freeDaysLabel, busyReason, durationLabel, plural, MONTH_FULL, WEEKDAY_HEAD } from "../core/format.js";
+import { shortDate, dayWithWeekday, relLongDayLabel, monthTitle, freeLabel, busyReason, durationLabel, plural, WEEKDAY_HEAD } from "../core/format.js";
 import { normalizeName, normalizePhone, prettyPhone } from "../core/validate.js";
 import { stepStates, activeStep, openStep, STEP_HINT } from "../core/guide.js";
 import { createScroller, glideToStep, morphHeight, calmMotion } from "./motion.js";
@@ -20,6 +20,7 @@ const TICK = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke
 const NUM_TICK = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
 const BIG_TICK = '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
 const READ_TICK = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m1 13 4 4L14 8"/><path d="m9 13 4 4L22 8"/></svg>';
+const STAR = '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><path d="m12 2 2.9 6.3 6.6.8-4.9 4.6 1.3 6.8L12 17.3 6.1 20.5l1.3-6.8L2.5 9.1l6.6-.8z"/></svg>';
 const ANY_UNIT = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 20v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1"/><circle cx="7.5" cy="7" r="3.2"/><path d="M16 15.2a4 4 0 0 1 6 3.5V20"/><circle cx="16.8" cy="7.4" r="2.8"/></svg>';
 
 const pad = (n) => String(n).padStart(2, "0");
@@ -57,6 +58,7 @@ export function mountBooking(root, business, adapter) {
     view: null,      // {y, m} — який місяць показує календар
     time: null,
     open: null,      // крок, який людина відкрила сама; null — ведемо по порядку
+    remind: true,    // нагадування за добу; людина може вимкнути
     sending: false,
   };
 
@@ -181,6 +183,7 @@ export function mountBooking(root, business, adapter) {
       card.innerHTML =
         '<span class="av"></span>' +
         '<span class="t-txt"><span class="t-name"></span><span class="t-note"></span></span>' +
+        '<span class="rate" hidden></span>' +
         `<span class="dot">${TICK}</span>`;
       // «Будь-який вільний» — це не людина і не пост, тому в нього значок, а не
       // ініціали: інакше аватар «БВ» читається як ще один майстер.
@@ -189,6 +192,16 @@ export function mountBooking(root, business, adapter) {
       else av.textContent = initials(u.name);
       card.querySelector(".t-name").textContent = u.name;
       card.querySelector(".t-note").textContent = u.note ?? "";
+      // Рейтинг показуємо, тільки якщо він справді є в профілі закладу.
+      // Вигаданий рейтинг у демо для чужого бізнесу — це те саме, що вигадана
+      // ціна: власник побачить його першим і перестане вірити всьому решті.
+      if (u.rating) {
+        const rate = card.querySelector(".rate");
+        rate.hidden = false;
+        rate.innerHTML = `${STAR}<b></b>`;
+        rate.querySelector("b").textContent = String(u.rating);
+        rate.setAttribute("aria-label", `рейтинг ${u.rating}`);
+      }
       card.onclick = async () => {
         const changed = state.unit !== i;
         state.unit = i;
@@ -210,73 +223,8 @@ export function mountBooking(root, business, adapter) {
   }
 
   /* ── крок 3: день ────────────────────────────────────────────────────── */
-  // Три ярлики: сьогодні, завтра і стрибок на наступний місяць. Під кожним —
-  // скільки там вільного, щоб кнопка казала правду ще до натискання.
   function monthOf(day) {
     return monthIndex(day.date.getFullYear(), day.date.getMonth());
-  }
-
-  function quickChips() {
-    const chips = [];
-
-    for (const [i, label] of [[0, "сьогодні"], [1, "завтра"]]) {
-      const day = days[i];
-      if (!day) continue;
-      chips.push({
-        label,
-        sub: day.free ? freeLabel(day.free) : busyReason(day.closed),
-        day,
-        on: () => state.key === day.key,
-      });
-    }
-
-    const thisMonth = monthOf(days[0]);
-    const first = days.find((d) => monthOf(d) > thisMonth && d.free > 0);
-    if (first) {
-      const month = monthOf(first);
-      const n = days.filter((d) => monthOf(d) === month && d.free > 0).length;
-      chips.push({
-        label: MONTH_FULL[first.date.getMonth()],
-        sub: freeDaysLabel(n),
-        day: first,
-        on: () => !!current() && monthOf(current()) === month,
-      });
-    }
-
-    return chips;
-  }
-
-  let quickSig = null;
-  let quickShown = [];
-
-  function syncQuick() {
-    const box = $("quick");
-    const chips = quickChips();
-    box.hidden = chips.length === 0;
-
-    const sig = chips.map((c) => `${c.label}|${c.sub}|${c.day.key}`).join("~");
-    if (sig !== quickSig) {
-      quickSig = sig;
-      grow(box, () => {
-        box.textContent = "";
-        quickShown = chips.map((c) => {
-          const b = document.createElement("button");
-          b.type = "button";
-          b.className = "chip";
-          b.dataset.k = `chip-${c.label}`;
-          b.disabled = c.day.free === 0;
-          b.innerHTML = '<b class="chip-day"></b><span class="chip-free"></span>';
-          b.querySelector(".chip-day").textContent = c.label;
-          b.querySelector(".chip-free").textContent = c.sub;
-          b.setAttribute("aria-label", `${c.label}, ${shortDate(c.day.date)} — ${c.sub}`);
-          if (!b.disabled) b.onclick = () => pickDay(c.day);
-          box.append(b);
-          return { el: b, chip: c };
-        });
-      });
-    }
-
-    for (const { el, chip } of quickShown) el.classList.toggle("on", chip.on());
   }
 
   let calMonth = null;
@@ -349,7 +297,9 @@ export function mountBooking(root, business, adapter) {
       const kind = !day ? "out" : day.free > 0 ? "free" : "none";
       const sel = !!day && day.key === state.key;
 
-      el.className = `cell ${kind}${sel ? " sel" : ""}`;
+      // Сьогодні позначаємо завжди — від нього людина рахує «як швидко можна».
+      const isToday = dayKey(date) === dayKey(today);
+      el.className = `cell ${kind}${sel ? " sel" : ""}${isToday ? " today" : ""}`;
       el.disabled = kind !== "free";
       el.setAttribute("aria-pressed", String(sel));
       el.title = !day
@@ -478,9 +428,15 @@ export function mountBooking(root, business, adapter) {
           : !state.time ? "оберіть час"
             : `${shortDate(day.date)}, ${state.time}`;
 
-    $("go").disabled = !ready || state.sending;
-    $("go").textContent = state.sending ? "Записуємо…" : "Записатись";
+    // Кнопка ніколи не буває мертвою: поки заповнено не все, вона веде до
+    // наступного кроку. Сіра кнопка на пів екрана нічого не пояснює — людина
+    // тисне її першою і не розуміє, чому нічого не сталось.
+    allReady = ready;
+    $("go").disabled = state.sending;
+    $("go").textContent = state.sending ? "Записуємо…" : ready ? "Записатись" : "Далі";
   }
+
+  let allReady = false;
 
   /* ── супровід кроками ────────────────────────────────────────────────── */
   const stepEls = [...root.querySelectorAll(".step[data-step]")];
@@ -575,7 +531,6 @@ export function mountBooking(root, business, adapter) {
 
     syncService();
     syncUnits();
-    syncQuick();
     syncCalendar();
     syncSlots();
     paintBar();
@@ -609,6 +564,17 @@ export function mountBooking(root, business, adapter) {
     input.setAttribute("aria-invalid", "false");
   }
 
+  $("remind-sub").textContent = "Нагадаємо за добу до візиту";
+  $("remind").onclick = () => {
+    state.remind = !state.remind;
+    syncRemind();
+  };
+  function syncRemind() {
+    $("remind").classList.toggle("on", state.remind);
+    $("remind").setAttribute("aria-pressed", String(state.remind));
+  }
+  syncRemind();
+
   $("nm").oninput = () => {
     clearError($("nm"), $("nm-err"));
     paintBar();
@@ -622,6 +588,14 @@ export function mountBooking(root, business, adapter) {
 
   /* ── відправлення ────────────────────────────────────────────────────── */
   $("go").onclick = async () => {
+    if (!allReady) {
+      // Повертаємось до звичайного ходу і ведемо до першого незаповненого.
+      state.open = null;
+      paint();
+      reveal(stepEls[lastOpen]);
+      return;
+    }
+
     const name = normalizeName($("nm").value);
     const phone = normalizePhone($("ph").value);
     // Обидві перевірки виконуються завжди: людина має побачити всі помилки
@@ -646,6 +620,7 @@ export function mountBooking(root, business, adapter) {
         unit: chosenUnit().name,
         date: day.date,
         time: state.time,
+        remind: state.remind,
       });
       scroller.stop();
       renderDone(day, res, phone.value);

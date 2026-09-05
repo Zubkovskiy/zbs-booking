@@ -104,11 +104,18 @@ export function reminderAt(date, hour = 10, now = new Date()) {
   return d <= now ? new Date(now.getTime() + 60 * 60 * 1000) : d;
 }
 
-/** Усі три разом — у такому вигляді їх показує демо і шле бекенд. */
+/**
+ * Усі повідомлення разом — у такому вигляді їх показує демо і шле бекенд.
+ * Нагадування людина може вимкнути в останньому кроці; підтвердження їй і
+ * сповіщення адміністратору — ні, без них запис просто не працює.
+ */
 export function buildAll(biz, b, now = new Date()) {
-  return [
+  const all = [
     { to: "client", channel: "telegram", when: "одразу", parts: clientConfirmationParts(biz, b), body: clientConfirmation(biz, b) },
     { to: "admin", channel: "telegram", when: "одразу", parts: adminAlertParts(biz, b), body: adminAlert(biz, b) },
-    { to: "client", channel: "telegram", when: reminderAt(b.date, 10, now), parts: clientReminderParts(biz, b), body: clientReminder(biz, b) },
   ];
+  if (b.remind !== false) {
+    all.push({ to: "client", channel: "telegram", when: reminderAt(b.date, 10, now), parts: clientReminderParts(biz, b), body: clientReminder(biz, b) });
+  }
+  return all;
 }
