@@ -7,7 +7,8 @@
 // анімуватись), губило фокус із клавіатури і давало смиканину на кожен клік.
 
 import { nextDays, countFree, bestDayIndex, dayKey, monthGrid, monthIndex, isWorkday, groupByPartOfDay, ticketCode } from "../core/schedule.js";
-import { shortDate, dayWithWeekday, relLongDayLabel, monthTitle, freeLabel, busyReason, durationLabel, plural, WEEKDAY_HEAD } from "../core/format.js";
+import { shortDate, dayWithWeekday, relLongDayLabel, monthTitle, freeLabel, busyReason, durationLabel, splitPrice, plural, WEEKDAY_HEAD } from "../core/format.js";
+import { icsEvent, mapsLink } from "../core/calendar.js";
 import { normalizeName, normalizePhone, prettyPhone } from "../core/validate.js";
 import { stepStates, activeStep, openStep, STEP_HINT } from "../core/guide.js";
 import { createScroller, glideToStep, morphHeight, calmMotion } from "./motion.js";
@@ -147,10 +148,12 @@ export function mountBooking(root, business, adapter) {
       opt.setAttribute("role", "option");
       opt.innerHTML =
         '<span class="t-txt"><span class="t-name"></span><span class="t-note"></span></span>' +
-        `<span class="price"></span><span class="dot">${TICK}</span>`;
+        `<span class="price"><b></b><span></span></span><span class="dot">${TICK}</span>`;
       opt.querySelector(".t-name").textContent = s.name;
       opt.querySelector(".t-note").textContent = s.note ?? "";
-      opt.querySelector(".price").textContent = s.price ?? "";
+      const price = splitPrice(s.price);
+      opt.querySelector(".price b").textContent = price.value;
+      opt.querySelector(".price span").textContent = price.unit;
       opt.onclick = () => {
         state.svc = i;
         state.open = null;      // вибір зроблено — ведемо далі, а не лишаємось тут
@@ -874,13 +877,54 @@ export function mountBooking(root, business, adapter) {
     chats.className = "chats";
     chatsOf(res.messages).forEach((chat, i) => chats.append(renderChat(chat, now, i)));
 
+    // Кнопки з макета. Кожна робить справжню роботу: файл події для календаря
+    // збирається тут же, маршрут веде на карти за адресою закладу, а дзвінок
+    // з'являється тільки тоді, коли телефон є в профілі.
+    const acts = document.createElement("div");
+    acts.className = "ticket-acts";
+    const at = new Date(day.date);
+    at.setHours(Number(state.time.slice(0, 2)), Number(state.time.slice(3, 5)), 0, 0);
+    const ics = icsEvent({
+      title: `${chosenSvc().name} · ${business.name}`,
+      at,
+      minutes: business.hours.stepMin,
+      location: business.address,
+      note: `${business.unitTitle ?? "Майстер"}: ${chosenUnit().name}`,
+      uid: `${day.key}-${state.time}@zbs-booking`,
+    });
+    const cal = document.createElement("a");
+    cal.className = "act main";
+    cal.textContent = "Додати в календар";
+    cal.href = `data:text/calendar;charset=utf-8,${encodeURIComponent(ics)}`;
+    cal.download = `zapys-${day.key}.ics`;
+
+    const pair = document.createElement("div");
+    pair.className = "pair";
+    const route = document.createElement("a");
+    route.className = "act";
+    route.textContent = "Маршрут";
+    route.href = mapsLink(business.address);
+    route.target = "_blank";
+    route.rel = "noopener";
+    pair.append(route);
+    if (business.phone) {
+      const call = document.createElement("a");
+      call.className = "act";
+      call.textContent = "Подзвонити";
+      call.href = `tel:${business.phone.replace(/[^\d+]/g, "")}`;
+      pair.append(call);
+    } else {
+      pair.style.gridTemplateColumns = "1fr";
+    }
+    acts.append(cal, pair);
+
     const again = document.createElement("button");
     again.type = "button";
     again.className = "again";
     again.textContent = "Пройти ще раз";
     again.onclick = () => location.reload();
 
-    box.append(top, renderTicket(day), nextH, chats, again);
+    box.append(top, renderTicket(day), acts, nextH, chats, again);
     if (!res.sent) {
       const note = document.createElement("div");
       note.className = "demo-note";

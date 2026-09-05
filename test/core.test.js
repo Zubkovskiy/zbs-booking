@@ -2,7 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { dayKey, hashPercent, buildSlots, countFree, nextDays, bestDayIndex, monthGrid, monthIndex, groupByPartOfDay, ticketCode } from "../src/core/schedule.js";
-import { plural, shortDate, dayLabel, relDayLabel, relLongDayLabel, longDate, dayWithWeekday, durationLabel, monthTitle, freeLabel, freeDaysLabel, busyReason } from "../src/core/format.js";
+import { plural, shortDate, dayLabel, relDayLabel, relLongDayLabel, longDate, dayWithWeekday, durationLabel, splitPrice, monthTitle, freeLabel, freeDaysLabel, busyReason } from "../src/core/format.js";
+import { icsEvent, mapsLink } from "../src/core/calendar.js";
 import { normalizePhone, prettyPhone, normalizeName } from "../src/core/validate.js";
 import { clientConfirmation, adminAlert, reminderAt, buildAll } from "../src/core/messages.js";
 import { stepStates, activeStep, openStep, STEP_HINT } from "../src/core/guide.js";
@@ -540,4 +541,36 @@ test("вимкнене нагадування прибирає саме його
   const on = buildAll(BIZ, BOOKING);
   assert.equal(on.length, 3, "без прапорця нагадування є за замовчуванням");
   assert.equal(on[2].parts.buttons.length, 2);
+});
+
+/* ── ціна і подія календаря ─────────────────────────────────────────── */
+
+test("ціна ділиться на число й одиницю, а нечислова лишається як є", () => {
+  assert.deepEqual(splitPrice("від 1 000 ₴"), { value: "від 1 000", unit: "грн" });
+  assert.deepEqual(splitPrice("800 ₴"), { value: "800", unit: "грн" });
+  assert.deepEqual(splitPrice("за оглядом"), { value: "за оглядом", unit: "" });
+  assert.deepEqual(splitPrice(undefined), { value: "", unit: "" });
+});
+
+test("подія для календаря має початок, кінець і місце", () => {
+  const ics = icsEvent({
+    title: "Шиномонтаж · Мега-Сервіс",
+    at: new Date(2026, 8, 7, 9, 0),
+    minutes: 60,
+    location: "Бровари, вул. Сергія Москаленка, 20",
+    uid: "2026-09-07-09:00@zbs-booking",
+  });
+  assert.match(ics, /^BEGIN:VCALENDAR/);
+  assert.match(ics, /DTSTART:20260907T090000/);
+  assert.match(ics, /DTEND:20260907T100000/, "кінець на тривалість пізніше");
+  // Кома в адресі має бути екранована, інакше вона ділить поле надвоє.
+  const loc = ics.split("\r\n").find((l) => l.startsWith("LOCATION:"));
+  assert.equal(loc, "LOCATION:Бровари\\, вул. Сергія Москаленка\\, 20");
+  assert.match(ics, /END:VCALENDAR$/);
+});
+
+test("маршрут веде на карти з адресою в запиті", () => {
+  const link = mapsLink("Бровари, вул. Сергія Москаленка, 20");
+  assert.match(link, /^https:\/\/www\.google\.com\/maps/);
+  assert.ok(link.includes(encodeURIComponent("Бровари, вул. Сергія Москаленка, 20")));
 });

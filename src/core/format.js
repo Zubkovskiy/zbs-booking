@@ -82,6 +82,19 @@ export function monthTitle(year, month) {
   return `${MONTH_FULL[month]} ${year}`;
 }
 
+/**
+ * Ціна двома поверхами: число окремо, одиниця окремо.
+ * У даних вона рядком («від 1 000 ₴», «за оглядом»), бо в неї буває і «від»,
+ * і зовсім не число. Тому не парсимо, а лише відділяємо знак гривні.
+ * @returns {{value:string, unit:string}} unit порожній, коли ціни як числа немає
+ */
+export function splitPrice(price) {
+  const text = String(price ?? "").trim();
+  if (!text) return { value: "", unit: "" };
+  const m = text.match(/^(.*?)\s*₴$/);
+  return m ? { value: m[1], unit: "грн" } : { value: text, unit: "" };
+}
+
 /** «1 год», «45 хв», «1 год 30 хв» — скільки триває візит. */
 export function durationLabel(min) {
   const h = Math.floor(min / 60);
