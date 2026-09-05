@@ -6,7 +6,7 @@
 // Перемальовування вбивало кожен перехід (нова кнопка не має від чого
 // анімуватись), губило фокус із клавіатури і давало смиканину на кожен клік.
 
-import { nextDays, countFree, bestDayIndex, dayKey, monthGrid, monthIndex, isWorkday, groupByPartOfDay, ticketCode } from "../core/schedule.js";
+import { nextDays, bestDayIndex, dayKey, monthGrid, monthIndex, isWorkday, groupByPartOfDay, slotStarts, countStarts, ticketCode } from "../core/schedule.js";
 import { shortDate, dayWithWeekday, relLongDayLabel, monthTitle, freeLabel, busyReason, durationLabel, servicePrice, totalPrice, plural, WEEKDAY_HEAD } from "../core/format.js";
 import { icsEvent, mapsLink } from "../core/calendar.js";
 import { normalizeName, normalizePhone, prettyPhone } from "../core/validate.js";
@@ -38,6 +38,15 @@ function initials(name) {
 
 export function mountBooking(root, business, adapter) {
   const $ = (id) => root.getElementById(id);
+
+  /* Липка шапка своєю висотою відсуває все, що теж липке: без цього бічна
+     панель під'їжджає під неї й обрізається. Висоту міряємо, а не вгадуємо —
+     вона залежить від довжини назви закладу. */
+  function measureTop() {
+    const h = root.querySelector(".top").getBoundingClientRect().height;
+    root.documentElement.style.setProperty("--top-h", `${Math.round(h)}px`);
+  }
+  addEventListener("resize", measureTop, { passive: true });
 
   /* ── шапка ───────────────────────────────────────────────────────────── */
   $("b-logo").textContent = business.name.slice(0, 1);
@@ -90,7 +99,7 @@ export function mountBooking(root, business, adapter) {
       // Поки пост не обрано, показуємо наявність за першим — інакше нема з чого
       // намалювати календар. Щойно пост обрано, все перераховується під нього.
       const slots = closed ? [] : await adapter.slots(date, state.unit ?? 0);
-      const day = { i, date, key: dayKey(date), closed, slots, free: countFree(slots) };
+      const day = { i, date, key: dayKey(date), closed, slots };
       days.push(day);
       byKey.set(day.key, day);
     }
@@ -98,18 +107,39 @@ export function mountBooking(root, business, adapter) {
     // Обраний раніше день лишаємо, якщо він і далі вільний. Інакше знімаємо
     // вибір, а не підставляємо інший — це вибір людини, не наш.
     const kept = state.key ? byKey.get(state.key) : null;
-    if (!kept || kept.free === 0) {
+    if (!kept || freeOf(kept) === 0) {
       state.key = null;
       state.time = null;
-    } else if (state.time && !kept.slots.some((sl) => sl.time === state.time && sl.free)) {
+    } else if (state.time && !startsOf(kept).some((sl) => sl.time === state.time)) {
       state.time = null;
     }
 
-    const focus = kept ?? days[bestDayIndex(days.map((d) => d.free))];
+    const focus = kept ?? days[bestDayIndex(days.map(freeOf))];
     state.view = { y: focus.date.getFullYear(), m: focus.date.getMonth() };
   }
 
   const current = () => (state.key ? byKey.get(state.key) : null);
+
+  /* Кожна послуга займає один слот. Дві послуги — дві години поспіль, і день,
+     у якому вільні години розкидані поодинці, для такого запису не годиться.
+     Тому «вільно» рахується не по годинах, а по МОЖЛИВИХ ПОЧАТКАХ. */
+  const need = () => Math.max(1, state.svcs.length);
+  const minutes = () => business.hours.stepMin * need();
+  const startsOf = (day) => slotStarts(day.slots, need());
+  const freeOf = (day) => countStarts(day.slots, need());
+
+  /** Вибір міг застаріти: додали другу послугу — і обрана година вже не влазить. */
+  function reconcile() {
+    const day = current();
+    if (!day) return;
+    const starts = startsOf(day);
+    if (!starts.length) {
+      state.key = null;
+      state.time = null;
+    } else if (state.time && !starts.some((s) => s.time === state.time)) {
+      state.time = null;
+    }
+  }
   const chosen = () => state.svcs.map((i) => business.services[i]);
   const chosenUnit = () => (state.unit === null ? null : business.units[state.unit]);
 
@@ -331,7 +361,8 @@ export function mountBooking(root, business, adapter) {
   function dressCells() {
     for (const { el, date } of calCells) {
       const day = byKey.get(dayKey(date));
-      const kind = !day ? "out" : day.free > 0 ? "free" : "none";
+      const free = day ? freeOf(day) : 0;
+      const kind = !day ? "out" : free > 0 ? "free" : "none";
       const sel = !!day && day.key === state.key;
 
       // Сьогодні позначаємо завжди — від нього людина рахує «як швидко можна».
@@ -341,9 +372,9 @@ export function mountBooking(root, business, adapter) {
       el.setAttribute("aria-pressed", String(sel));
       el.title = !day
         ? `запис відкритий на ${DAYS_AHEAD} ${plural(DAYS_AHEAD, "день", "дні", "днів")} уперед`
-        : day.free === 0
+        : free === 0
           ? busyReason(day.closed)
-          : freeLabel(day.free);
+          : freeLabel(free);
       el.setAttribute("aria-label", `${shortDate(date)} — ${el.title}`);
       if (kind === "free") {
         el.dataset.k = `cell-${day.key}`;
@@ -373,10 +404,13 @@ export function mountBooking(root, business, adapter) {
     const box = $("slots");
 
     $("slots-note").textContent = day
-      ? `Тривалість візиту: ${durationLabel(business.hours.stepMin)}${business.openLine ? ` · ${business.openLine}` : ""}`
+      ? `Тривалість візиту: ${durationLabel(minutes())}${business.openLine ? ` · ${business.openLine}` : ""}`
       : "";
 
-    const sig = day ? `${state.unit}|${day.key}|${day.slots.map((s) => s.time + (s.free ? "+" : "-")).join(",")}` : "";
+    // Підпис залежить і від набору послуг: дві години поспіль лишають менше
+    // можливих початків, тож сітку треба перебудувати.
+    const starts = day ? new Set(startsOf(day).map((s) => s.time)) : new Set();
+    const sig = day ? `${state.unit}|${day.key}|${need()}|${day.slots.map((s) => s.time + (s.free ? "+" : "-")).join(",")}` : "";
     if (sig !== slotsSig) {
       slotsSig = sig;
       // Порожньо → повна сітка годин — це найбільший стрибок висоти на всій
@@ -409,9 +443,14 @@ export function mountBooking(root, business, adapter) {
             b.className = "slot";
             b.style.setProperty("--i", String(i++));
             b.textContent = s.time;
-            b.disabled = !s.free;
-            b.title = s.free ? "вільно" : s.why === "past" ? "час уже минув" : "зайнято";
-            if (s.free) {
+            const canStart = starts.has(s.time);
+            b.disabled = !canStart;
+            b.title = canStart
+              ? "вільно"
+              : s.why === "past" ? "час уже минув"
+                : s.free ? `не влазить ${durationLabel(minutes())} поспіль`
+                  : "зайнято";
+            if (canStart) {
               b.dataset.k = `slot-${s.time}`;
               b.onclick = () => {
                 state.time = s.time;
@@ -465,10 +504,12 @@ export function mountBooking(root, business, adapter) {
 
     // Бічна колонка каже те саме, але розгорнуто: три рядки, кожен або з
     // вибором, або з чесним «не обрано».
+    // Порядок рядків = порядок кроків: людина шукає в панелі те, що щойно
+    // обрала, і не має перечитувати її щоразу згори.
     const rows = [
       ["Послуга", svcs.length ? svcs.map((x) => x.name).join(" + ") : null],
-      ["Коли", day && state.time ? `${dayWithWeekday(day.date, today)}, ${state.time}` : day ? dayWithWeekday(day.date, today) : null],
       [business.unitTitle ?? "Майстер", unit ? unit.name : null],
+      ["Коли", day && state.time ? `${dayWithWeekday(day.date, today)}, ${state.time}` : day ? dayWithWeekday(day.date, today) : null],
     ];
     const box = $("aside-rows");
     box.textContent = "";
@@ -595,6 +636,7 @@ export function mountBooking(root, business, adapter) {
     // чи місяця таки будує нові — тоді повертаємо фокус на ту саму.
     const held = root.activeElement && root.activeElement.dataset ? root.activeElement.dataset.k : null;
 
+    reconcile();
     syncService();
     syncUnits();
     syncCalendar();
@@ -684,6 +726,7 @@ export function mountBooking(root, business, adapter) {
         phone: phone.value,
         services: chosen().map((x) => ({ name: x.name, price: x.price ?? null, from: !!x.from })),
         car: $("car").value.trim(),
+        minutes: minutes(),
         unit: chosenUnit().name,
         date: day.date,
         time: state.time,
@@ -867,7 +910,7 @@ export function mountBooking(root, business, adapter) {
         '</div>' +
         '<div class="ticket-chips"></div>' +
       '</div>' +
-      '<div class="perf"><i></i><b></b><i></i></div>' +
+      '<div class="perf"><b></b></div>' +
       '<div class="ticket-grid"></div>';
 
     box.querySelector(".ticket-name").textContent = svcs.map((s) => s.name).join(" + ");
@@ -875,7 +918,7 @@ export function mountBooking(root, business, adapter) {
     box.querySelector(".ticket-price b").textContent = t.unit ? `${t.value} ₴` : t.value;
 
     const chips = box.querySelector(".ticket-chips");
-    for (const text of [`№ ${initials(business.name)}-${no}`, durationLabel(business.hours.stepMin), unit.name]) {
+    for (const text of [`№ ${initials(business.name)}-${no}`, durationLabel(minutes()), unit.name]) {
       const s = document.createElement("span");
       s.textContent = text;
       chips.append(s);
@@ -934,7 +977,7 @@ export function mountBooking(root, business, adapter) {
     const ics = icsEvent({
       title: `${chosen().map((s) => s.name).join(" + ")} · ${business.name}`,
       at,
-      minutes: business.hours.stepMin,
+      minutes: minutes(),
       location: business.address,
       note: `${business.unitTitle ?? "Майстер"}: ${chosenUnit().name}`,
       uid: `${day.key}-${state.time}@zbs-booking`,
@@ -985,6 +1028,7 @@ export function mountBooking(root, business, adapter) {
     box.hidden = false;
   }
 
+  measureTop();
   buildService();
   buildUnits();
   wireHeads();

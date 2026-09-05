@@ -20,12 +20,14 @@ import { prettyPhone } from "./validate.js";
  * @property {string} unit     майстер / пост / лікар
  * @property {Date}   date
  * @property {string} time     "14:30"
+ * @property {number} minutes скільки триває візит цілком
  * @property {string} [car]    необов'язкове
  * @property {boolean} [remind]
  */
 
 const names = (b) => b.services.map((s) => s.name).join(" + ");
 const when = (b) => `${shortDate(b.date)}, ${b.time}`;
+const dur = (b) => durationLabel(b.minutes);
 const total = (b) => {
   const t = totalPrice(b.services);
   return t.unit ? `${t.value} ₴` : t.value;
@@ -61,7 +63,7 @@ export function adminAlertParts(biz, b) {
     title: `Новий запис · ${when(b)}`,
     rows: [
       ["Клієнт", `${b.name}, ${prettyPhone(b.phone)}`],
-      ["Послуга", `${names(b)} · ${durationLabel(biz.hours.stepMin)}`],
+      ["Послуга", `${names(b)} · ${dur(b)}`],
       ["Авто", b.car || "не вказано"],
       [biz.unitTitle ?? "Майстер", b.unit],
       ["Сума", total(b)],
@@ -80,7 +82,7 @@ export function clientReminderParts(biz, b) {
     title: "Нагадування",
     lines: [
       `Завтра о ${b.time} чекаємо вас у ${biz.name}.`,
-      `${names(b)} · ${durationLabel(biz.hours.stepMin)}`,
+      `${names(b)} · ${dur(b)}`,
     ],
     note: "Підтвердіть, будь ласка, щоб ми не тримали час даремно.",
     // Дві кнопки замість «відповідайте текстом»: одне торкання, і адміністратор

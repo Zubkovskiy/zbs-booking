@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { dayKey, hashPercent, buildSlots, countFree, nextDays, bestDayIndex, monthGrid, monthIndex, groupByPartOfDay, ticketCode } from "../src/core/schedule.js";
+import { dayKey, hashPercent, buildSlots, countFree, nextDays, bestDayIndex, monthGrid, monthIndex, groupByPartOfDay, slotStarts, countStarts, ticketCode } from "../src/core/schedule.js";
 import { plural, shortDate, dayLabel, relDayLabel, relLongDayLabel, longDate, dayWithWeekday, durationLabel, splitPrice, monthTitle, freeLabel, freeDaysLabel, busyReason } from "../src/core/format.js";
 import { icsEvent, mapsLink } from "../src/core/calendar.js";
 import { normalizePhone, prettyPhone, normalizeName } from "../src/core/validate.js";
@@ -157,6 +157,7 @@ const BOOKING = {
   unit: "Андрій Бондар",
   date: new Date(2026, 7, 31),
   time: "11:00",
+  minutes: 60,
 };
 
 test("підтвердження клієнту містить усе, що йому треба", () => {
@@ -179,6 +180,7 @@ test("кілька послуг ідуть одним записом і одні
   const two = {
     ...BOOKING,
     services: [{ name: "Діагностика", price: 600 }, { name: "Шиномонтаж", price: 120, from: true }],
+    minutes: 120,
   };
   assert.ok(clientConfirmation(BIZ, two).includes("Діагностика + Шиномонтаж"));
   // Одна складова приблизна — уся сума приблизна, інакше вона бреше точністю.
@@ -598,4 +600,29 @@ test("маршрут веде на карти з адресою в запиті"
   const link = mapsLink("Бровари, вул. Сергія Москаленка, 20");
   assert.match(link, /^https:\/\/www\.google\.com\/maps/);
   assert.ok(link.includes(encodeURIComponent("Бровари, вул. Сергія Москаленка, 20")));
+});
+
+/* ── візит довший за годину ─────────────────────────────────────────── */
+
+const FREE = (...flags) => flags.map((free, i) => ({ time: `${String(9 + i).padStart(2, "0")}:00`, free }));
+
+test("дві послуги можна почати тільки там, де вільні дві години поспіль", () => {
+  const day = FREE(true, true, false, true, true, true);
+  assert.deepEqual(slotStarts(day, 1).map((s) => s.time), ["09:00", "10:00", "12:00", "13:00", "14:00"]);
+  assert.deepEqual(slotStarts(day, 2).map((s) => s.time), ["09:00", "12:00", "13:00"]);
+  assert.deepEqual(slotStarts(day, 3).map((s) => s.time), ["12:00"]);
+});
+
+test("візит не може вилізти за кінець дня", () => {
+  // Остання година вільна, але після неї закладу вже немає.
+  const day = FREE(false, false, true);
+  assert.deepEqual(slotStarts(day, 1).map((s) => s.time), ["11:00"]);
+  assert.deepEqual(slotStarts(day, 2), [], "двом годинам тут нема де поміститись");
+  assert.equal(countStarts(day, 2), 0);
+});
+
+test("день без жодного початку рахується зайнятим, хоч вільні години в ньому є", () => {
+  const day = FREE(true, false, true, false, true);
+  assert.equal(countStarts(day, 1), 3);
+  assert.equal(countStarts(day, 2), 0, "саме це й ховає день у календарі");
 });

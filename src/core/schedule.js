@@ -48,6 +48,31 @@ export function ticketCode(seed) {
   return 1000 + ((h >>> 0) % 9000);
 }
 
+/**
+ * З яких годин можна почати візит, що триває `need` слотів поспіль.
+ *
+ * Дві послуги — це дві години, і почати їх о 17:00, коли заклад зачиняється о
+ * 18:00, не можна. Тому вільна година сама по собі ще нічого не означає:
+ * важливо, чи вільні всі наступні, і чи є вони взагалі до кінця дня.
+ *
+ * @param {{free:boolean}[]} slots усі години дня, за порядком
+ * @param {number} need скільки годин поспіль займе візит
+ * @returns {{free:boolean}[]} самі слоти, з яких можна почати
+ */
+export function slotStarts(slots, need = 1) {
+  const n = Math.max(1, need);
+  return slots.filter((s, i) => {
+    if (!s.free) return false;
+    const run = slots.slice(i, i + n);
+    return run.length === n && run.every((x) => x.free);
+  });
+}
+
+/** Скільки таких початків є. Саме це число показує календар. */
+export function countStarts(slots, need = 1) {
+  return slotStarts(slots, need).length;
+}
+
 /** Частини доби для сітки годин. Межі — робочі, а не астрономічні. */
 const PARTS = [
   { label: "Ранок", to: 12 },

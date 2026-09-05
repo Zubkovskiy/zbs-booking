@@ -459,14 +459,9 @@ body{padding-bottom:104px}   /* під липку панель із кнопко
   font-size:12px;font-weight:700;padding:6px 10px;border-radius:var(--r-pill);
   background:var(--card);border:1px solid var(--line);
 }
-/* Перфорація: два вирізи кольору тла і пунктир між ними. */
+/* Перфорація — сам пунктир, без вирізів по краях. Вирізи тут обрізались
+   рамкою картки й читались як дві випадкові рисочки збоку. */
 .perf{position:relative;height:20px;background:var(--card)}
-.perf i{
-  position:absolute;top:-1px;width:22px;height:22px;border-radius:var(--r-pill);
-  background:var(--bg);border:1px solid var(--line);
-}
-.perf i:first-child{left:-11px}
-.perf i:last-child{right:-11px}
 .perf b{position:absolute;left:18px;right:18px;top:9px;border-top:1.5px dashed var(--line)}
 .ticket-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 14px;padding:4px 18px 18px}
 .ticket-grid .k{
@@ -605,7 +600,8 @@ body{padding-bottom:104px}   /* під липку панель із кнопко
   }
   .top{grid-column:1 / -1}
   .flow{grid-column:1}
-  .aside{display:block;grid-column:2;position:sticky;top:28px}
+  /* Відступ рівно на висоту липкої шапки — інакше панель ховається під неї. */
+  .aside{display:block;grid-column:2;position:sticky;top:calc(var(--top-h,96px) + 16px)}
   #done,.sig{grid-column:1 / -1}
   #done{max-width:560px;margin:0 auto;width:100%}
   .bar{display:none}
