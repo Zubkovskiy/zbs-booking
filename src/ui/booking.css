@@ -269,13 +269,6 @@ body{padding-bottom:104px}   /* під липку панель із кнопко
 }
 .opt.sel .av{background:var(--acc);color:var(--on-acc);box-shadow:none}
 .av svg{display:block}
-/* Рейтинг стоїть перед кружком вибору й ніколи не переносить рядок: це
-   довідка, а не заголовок. */
-.rate{
-  flex:none;display:flex;align-items:center;gap:4px;
-  font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;
-}
-.rate svg{display:block;color:var(--warn)}
 
 /* ── крок 3: день ───────────────────────────────────────────────────────── */
 /* Пояснення, чому щойно зник обраний день. Жовте, а не червоне: нічого не
@@ -528,6 +521,7 @@ input:-webkit-autofill:focus{
 #done.ready .ticket-acts,
 #done.ready .next-h,
 #done.ready .chats > *,
+#done.ready .chan-note,
 #done.ready .again,
 #done.ready .demo-note{animation:fade-up .42s var(--ease) backwards}
 #done.ready .done-top h2{animation-delay:0s}
@@ -536,9 +530,11 @@ input:-webkit-autofill:focus{
 #done.ready .ticket-acts{animation-delay:.2s}
 #done.ready .next-h{animation-delay:.28s}
 #done.ready .chats > *:nth-child(1){animation-delay:.34s}
-#done.ready .chats > *:nth-child(2){animation-delay:.42s}
-#done.ready .again{animation-delay:.5s}
-#done.ready .demo-note{animation-delay:.56s}
+#done.ready .chats > *:nth-child(2){animation-delay:.4s}
+#done.ready .chats > *:nth-child(3){animation-delay:.46s}
+#done.ready .chan-note{animation-delay:.54s}
+#done.ready .again{animation-delay:.6s}
+#done.ready .demo-note{animation-delay:.66s}
 
 /* ── екран підтвердження ────────────────────────────────────────────────── */
 #done{padding:8px 0 0}
@@ -617,8 +613,32 @@ input:-webkit-autofill:focus{
 .next-h .eyebrow{color:var(--mut)}
 .next-h p{margin:6px 0 0;font-size:14px;color:var(--mut);line-height:1.5}
 
-/* ── переписка ──────────────────────────────────────────────────────────── */
+/* ── два канали: SMS клієнту, Telegram власнику ─────────────────────────── */
+/* Різні канали мусять і виглядати по-різному, інакше екран каже «три однакові
+   повідомлення», а насправді клієнту нічого не треба ставити, а власнику
+   приходить у месенджер, у якому він і так сидить. */
 .chats{display:grid;gap:12px;margin-top:14px}
+
+/* Банер сповіщення на замкненому екрані: тінь глибша за картку, бо він лежить
+   ПОВЕРХ екрана, а не в потоці сторінки. */
+.sms{
+  background:var(--card);border:1px solid var(--line);border-radius:var(--r-card);
+  box-shadow:var(--shadow-lg);padding:12px 14px 13px;
+}
+.sms-top{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.sms-ic{
+  flex:none;width:22px;height:22px;border-radius:7px;
+  background:var(--acc);color:var(--on-acc);display:grid;place-items:center;
+}
+.sms-ic svg{display:block}
+.sms-from{
+  flex:1;min-width:0;font-size:11.5px;font-weight:700;letter-spacing:.02em;
+  text-transform:uppercase;color:var(--mut);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.sms-at{flex:none;font-size:11.5px;color:var(--faint);font-variant-numeric:tabular-nums}
+.sms-txt{margin:0;font-size:14.5px;font-weight:600;line-height:1.45;letter-spacing:-.01em}
+.chan-note{margin-top:10px;text-align:center;font-size:12px;color:var(--mut)}
 .chat{
   background:var(--card);border:1px solid var(--line);border-radius:var(--r-card);
   box-shadow:var(--shadow);overflow:hidden;
@@ -659,24 +679,6 @@ input:-webkit-autofill:focus{
   font-size:11px;color:var(--mut);font-variant-numeric:tabular-nums;
 }
 .tg-time svg{display:block;color:var(--acc-ink)}
-/* Клавіатура бота приклеєна до бабла знизу — тому й кути в неї такі. */
-.tg-kb{max-width:92%;display:grid;grid-template-columns:1fr 1fr;gap:3px;margin-top:3px}
-.tg-btn{
-  min-height:44px;border-radius:5px 5px 5px 12px;background:var(--card);color:var(--acc-ink);
-  font-size:14px;font-weight:600;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.18);
-  transition:background var(--t-swap) var(--ease),color var(--t-swap) var(--ease),
-             transform var(--t-tap) var(--ease-tap);
-}
-.tg-btn:last-child{border-radius:5px 12px 12px 5px}
-.tg-btn:active{transform:scale(.97)}
-.tg-btn.on{background:var(--acc);color:var(--on-acc)}
-@media (hover:hover){.tg-btn:hover{background:var(--acc-soft)}.tg-btn.on:hover{background:var(--acc)}}
-.tg-note{
-  max-width:92%;margin-top:6px;font-size:12px;line-height:1.4;color:var(--mut);
-  max-height:0;opacity:0;overflow:hidden;
-  transition:max-height var(--t-move) var(--ease),opacity var(--t-swap) var(--ease),margin-top var(--t-move) var(--ease);
-}
-.tg-note.on{max-height:60px;opacity:1}
 
 /* Дії під талоном — із макета. Показуємо тільки ті, для яких є дані:
    маршрут будуємо з адреси, дзвінок — лише коли в профілі є телефон. */

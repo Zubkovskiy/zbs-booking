@@ -23,7 +23,7 @@ const XL_TICK = '<svg width="62" height="62" viewBox="0 0 24 24" fill="none" str
 const BIG_TICK = '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
 const READ_TICK = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m1 13 4 4L14 8"/><path d="m9 13 4 4L22 8"/></svg>';
 const PLUS = '<svg class="i-plus" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
-const STAR = '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><path d="m12 2 2.9 6.3 6.6.8-4.9 4.6 1.3 6.8L12 17.3 6.1 20.5l1.3-6.8L2.5 9.1l6.6-.8z"/></svg>';
+const SMS_ICON = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.6-.7L3 21l1.8-5A8.3 8.3 0 0 1 4 11.5 8.4 8.4 0 0 1 12.5 3 8.4 8.4 0 0 1 21 11.5Z"/></svg>';
 const ANY_UNIT = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 20v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1"/><circle cx="7.5" cy="7" r="3.2"/><path d="M16 15.2a4 4 0 0 1 6 3.5V20"/><circle cx="16.8" cy="7.4" r="2.8"/></svg>';
 
 const pad = (n) => String(n).padStart(2, "0");
@@ -268,8 +268,7 @@ export function mountBooking(root, business, adapter) {
       card.className = "opt";
       card.innerHTML =
         '<span class="av"></span>' +
-        '<span class="t-txt"><span class="t-name"></span><span class="t-note"></span></span>' +
-        '<span class="rate" hidden></span>';
+        '<span class="t-txt"><span class="t-name"></span><span class="t-note"></span></span>';
       // «Будь-який вільний» — це не людина і не пост, тому в нього значок, а не
       // ініціали: інакше аватар «БВ» читається як ще один майстер.
       const av = card.querySelector(".av");
@@ -277,18 +276,8 @@ export function mountBooking(root, business, adapter) {
       else av.textContent = initials(u.name);
       card.querySelector(".t-name").textContent = u.name;
       card.querySelector(".t-note").textContent = u.note ?? "";
-      // Рейтинг показуємо, тільки якщо він справді є в профілі закладу.
-      // Вигаданий рейтинг у демо для чужого бізнесу — це те саме, що вигадана
-      // ціна: власник побачить його першим і перестане вірити всьому решті.
-      if (u.rating) {
-        const rate = card.querySelector(".rate");
-        rate.hidden = false;
-        rate.innerHTML = `${STAR}<b></b>`;
-        // Один знак після коми завжди: «5» поруч із «4.9» читається як інша
-        // шкала, а не як вищий бал.
-        rate.querySelector("b").textContent = Number(u.rating).toFixed(1);
-        rate.setAttribute("aria-label", `рейтинг ${u.rating}`);
-      }
+      // Рейтингу тут немає навмисно: свого ми не рахуємо, а чужий довелося б
+      // вигадати — власник побачив би вигадане першим і не повірив би решті.
       card.onclick = async () => {
         const changed = state.unit !== i;
         state.unit = i;
@@ -852,13 +841,12 @@ export function mountBooking(root, business, adapter) {
   /* ── екран підтвердження ─────────────────────────────────────────────── */
 
   /**
-   * Три повідомлення розкладаємо по двох переписках: те, що бачить клієнт у
-   * своєму телефоні, і те, що падає адміністратору. Саме це ми й продаємо, тож
-   * показуємо не «повідомлення в рамці», а те, як воно виглядатиме насправді.
+   * Повідомлення власнику — у переписку Telegram. Клієнтські сюди не потрапляють:
+   * у них інший канал і інший вигляд (див. renderSms).
    */
   function chatsOf(messages) {
     const chats = [];
-    for (const m of messages) {
+    for (const m of messages.filter((x) => x.channel === "telegram")) {
       let chat = chats.find((c) => c.to === m.to);
       if (!chat) {
         chat = { to: m.to, ...m.chat, items: [] };
@@ -876,6 +864,31 @@ export function mountBooking(root, business, adapter) {
       day: typeof when === "string" ? "сьогодні" : relLongDayLabel(at, today),
       time: `${pad(at.getHours())}:${pad(at.getMinutes())}`,
     };
+  }
+
+  /**
+   * SMS клієнту малюємо так, як він його побачить: банером сповіщення на
+   * замкненому екрані. Це не прикраса — це і є різниця між каналами. Поруч із
+   * переписками власника видно з першого погляду, що клієнту нічого не треба
+   * встановлювати й нікуди підписуватись: номер у нього вже є.
+   */
+  function renderSms(m, now) {
+    const box = document.createElement("section");
+    box.className = "sms";
+    box.innerHTML =
+      '<div class="sms-top">' +
+        `<span class="sms-ic">${SMS_ICON}</span>` +
+        '<span class="sms-from"></span><span class="sms-at"></span>' +
+      '</div>' +
+      '<p class="sms-txt"></p>';
+
+    const stamp = stampOf(m.when, now);
+    box.querySelector(".sms-from").textContent = m.parts.from;
+    // «Зараз» — бо це справді та сама секунда; у решти є свій день і час.
+    box.querySelector(".sms-at").textContent =
+      typeof m.when === "string" ? "зараз" : `${stamp.day}, ${stamp.time}`;
+    box.querySelector(".sms-txt").textContent = m.parts.shown;
+    return box;
   }
 
   function renderChat(chat, now, i) {
@@ -961,34 +974,6 @@ export function mountBooking(root, business, adapter) {
       time.innerHTML = `<span>${stamp.time}</span>${READ_TICK}`;
       bubble.append(time);
       wrap.append(bubble);
-
-      // Кнопки бота справжні — і це навмисно: власник має сам натиснути й
-      // побачити, що відповідь клієнта це один дотик, а не дзвінок.
-      if (m.parts.buttons) {
-        const kb = document.createElement("div");
-        kb.className = "tg-kb";
-        const note = document.createElement("div");
-        note.className = "tg-note";
-        const picks = [];
-
-        for (const label of m.parts.buttons) {
-          const b = document.createElement("button");
-          b.type = "button";
-          b.className = "tg-btn";
-          b.textContent = label;
-          b.onclick = () => {
-            for (const other of picks) other.classList.toggle("on", other === b);
-            note.textContent = label === m.parts.buttons[0]
-              ? "Готово. Адміністратор бачить підтвердження — дзвонити нікому не треба."
-              : "Готово. Адміністратор уже бачить, що час треба перенести.";
-            note.classList.add("on");
-          };
-          picks.push(b);
-          kb.append(b);
-        }
-        wrap.append(kb, note);
-      }
-
       feed.append(wrap);
     }
 
@@ -1068,9 +1053,17 @@ export function mountBooking(root, business, adapter) {
     nextH.innerHTML = '<div class="eyebrow">Що відбувається далі</div><p></p>';
     nextH.querySelector("p").textContent = "Повідомлення йдуть автоматично — адміністратор не потрібен.";
 
+    // Спершу те, що прийде клієнту, потім те, що прийде власнику. Контраст між
+    // банером SMS і перепискою в Telegram — це і є повідомлення: клієнту нічого
+    // ставити не треба, а власник сидить там, де йому зручно.
     const chats = document.createElement("div");
     chats.className = "chats";
+    for (const m of res.messages.filter((x) => x.channel === "sms")) chats.append(renderSms(m, now));
     chatsOf(res.messages).forEach((chat, i) => chats.append(renderChat(chat, now, i)));
+
+    const chanNote = document.createElement("div");
+    chanNote.className = "chan-note";
+    chanNote.textContent = "Клієнту — SMS. Вам — у Telegram.";
 
     // Кнопки з макета. Кожна робить справжню роботу: файл події для календаря
     // збирається тут же, маршрут веде на карти за адресою закладу, а дзвінок
@@ -1117,7 +1110,7 @@ export function mountBooking(root, business, adapter) {
       location.reload();
     };
 
-    box.append(top, renderTicket(day), acts, nextH, chats, again);
+    box.append(top, renderTicket(day), acts, nextH, chats, chanNote, again);
     if (!res.sent) {
       const note = document.createElement("div");
       note.className = "demo-note";

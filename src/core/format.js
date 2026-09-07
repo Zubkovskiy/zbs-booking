@@ -148,3 +148,36 @@ export function freeDaysLabel(n) {
 export function busyReason(closed) {
   return closed ? "не працюємо" : "все зайнято";
 }
+
+/**
+ * Типи вулиць, які в SMS не несуть інформації. «вул.» знає кожен, хто вже
+ * стоїть біля будинку, а в 70 символів вона коштує п'ять.
+ */
+const STREET_TYPE = /^(вул|вулиця|просп|проспект|пр|пров|провулок|бул|бульвар|пл|площа|ш|шосе|наб|набережна)\.?\s+/i;
+
+/**
+ * Адреса для SMS: «Бровари, вул. Сергія Москаленка, 20» → «Москаленка 20».
+ *
+ * Місто прибираємо (людина вже в ньому), тип вулиці прибираємо, з назви
+ * лишається останнє слово: ім'я в назві вулиці («Сергія») на місці не шукають,
+ * а таксі й карти знаходять за прізвищем.
+ */
+export function shortAddress(address) {
+  const parts = String(address ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  if (!parts.length) return "";
+  const last = parts[parts.length - 1];
+  // Номер будинку окремим шматком — тоді вулиця стоїть перед ним.
+  if (!/^\d/.test(last)) return last.replace(STREET_TYPE, "").trim();
+  const street = (parts[parts.length - 2] ?? "").replace(STREET_TYPE, "").trim();
+  const name = street.split(/\s+/).filter(Boolean).pop() ?? "";
+  return name ? `${name} ${last}` : last;
+}
+
+/**
+ * «о 12:00», але «об 11:00». Українською «об» стоїть перед голосною, а з усіх
+ * годин на голосну починається лише одинадцята. Одна літера, але без неї
+ * повідомлення читається як машинне.
+ */
+export function hourPrep(time) {
+  return Number(String(time).slice(0, 2)) === 11 ? "об" : "о";
+}

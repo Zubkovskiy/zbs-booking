@@ -2,10 +2,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { dayKey, hashPercent, buildSlots, countFree, nextDays, bestDayIndex, monthGrid, monthIndex, groupByPartOfDay, slotStarts, countStarts, visitMinutes, slotsNeeded, ticketCode } from "../src/core/schedule.js";
-import { plural, shortDate, dayLabel, relDayLabel, relLongDayLabel, longDate, dayWithWeekday, durationLabel, splitPrice, monthTitle, freeLabel, freeDaysLabel, busyReason } from "../src/core/format.js";
+import { plural, shortDate, dayLabel, relDayLabel, relLongDayLabel, longDate, dayWithWeekday, durationLabel, splitPrice, monthTitle, freeLabel, freeDaysLabel, busyReason, shortAddress, hourPrep } from "../src/core/format.js";
 import { icsEvent, mapsLink } from "../src/core/calendar.js";
 import { normalizePhone, prettyPhone, normalizeName, localPhone } from "../src/core/validate.js";
-import { clientConfirmation, adminAlert, reminderAt, buildAll } from "../src/core/messages.js";
+import { clientConfirmation, clientReminder, adminAlert, reminderAt, buildAll, smsLength } from "../src/core/messages.js";
 import { stepStates, activeStep, openStep, STEP_HINT } from "../src/core/guide.js";
 import { stepScrollTop, scrollDuration, easeInOut } from "../src/core/scroll.js";
 
@@ -160,11 +160,83 @@ const BOOKING = {
   minutes: 60,
 };
 
-test("підтвердження клієнту містить усе, що йому треба", () => {
+/* Клієнту йде SMS, і кожен зайвий символ — це гроші. Межа не рекомендація:
+   71 символ кирилиці коштує рівно вдвічі більше за 70. */
+
+test("smsLength рахує символи й частини, а не байти", () => {
+  assert.deepEqual(smsLength("а".repeat(70)), { chars: 70, parts: 1 });
+  assert.deepEqual(smsLength("а".repeat(71)), { chars: 71, parts: 2 });
+  assert.deepEqual(smsLength("а".repeat(134)), { chars: 134, parts: 2 });
+  assert.deepEqual(smsLength("а".repeat(135)), { chars: 135, parts: 3 });
+  assert.equal(smsLength("").chars, 0);
+});
+
+test("підтвердження клієнту влазить в ОДНЕ SMS і містить головне", () => {
   const t = clientConfirmation(BIZ, BOOKING);
-  for (const part of ["Мега-Сервіс", "Комп'ютерна діагностика", "31 сер", "11:00", "вул. Москаленка, 20"]) {
+  assert.equal(smsLength(t).parts, 1, `${smsLength(t).chars} символів: ${t}`);
+  for (const part of ["Мега-Сервіс", "31 сер", "11:00", "Москаленка 20"]) {
     assert.ok(t.includes(part), `бракує: ${part}`);
   }
+});
+
+test("нагадування теж одне SMS, і воно не переказує запис заново", () => {
+  const t = clientReminder(BIZ, BOOKING);
+  assert.equal(smsLength(t).parts, 1, `${smsLength(t).chars} символів: ${t}`);
+  assert.ok(t.includes("завтра"));
+  assert.ok(t.includes("11:00"));
+  // «Об» перед голосною: одинадцята — єдина година, що її потребує.
+  assert.ok(t.includes("об 11:00"), t);
+  assert.ok(!t.includes("Послуга"), "перелік послуг у нагадуванні зайвий");
+});
+
+test("довга назва послуги скорочує SMS, а не роздуває його", () => {
+  const long = { ...BOOKING, services: [{ name: "Комп'ютерна діагностика блоків керування", price: 1000 }] };
+  const t = clientConfirmation(BIZ, long);
+  assert.equal(smsLength(t).parts, 1, `${smsLength(t).chars} символів: ${t}`);
+  assert.ok(t.includes("…"), "обрізане має бути видно");
+  // Обрізаємо саме назву послуги — коли й куди лишаються цілими.
+  assert.ok(t.includes("31 сер 11:00") && t.includes("Москаленка 20"), t);
+});
+
+test("кілька послуг: перша й лічильник решти, і все одно одне SMS", () => {
+  const many = {
+    ...BOOKING,
+    services: [
+      { name: "Комп'ютерна діагностика блоків керування", price: 1000 },
+      { name: "Шиномонтаж, R16", price: 120 },
+      { name: "Озонування салону", price: 400 },
+    ],
+    minutes: 180,
+  };
+  const t = clientConfirmation(BIZ, many);
+  assert.equal(smsLength(t).parts, 1, `${smsLength(t).chars} символів: ${t}`);
+  assert.ok(t.includes("+2"), `решта має бути порахована: ${t}`);
+});
+
+test("назва закладу поступається адресі, коли місця не вистачає обом", () => {
+  const big = { name: "Стоматологічна клініка «Білий Ведмідь» на Оболоні", address: "Київ, просп. Володимира Івасюка, 122-Б" };
+  const t = clientConfirmation(big, { ...BOOKING, services: [{ name: "Професійна гігієна порожнини рота" }] });
+  assert.equal(smsLength(t).parts, 1, `${smsLength(t).chars} символів: ${t}`);
+  assert.ok(t.includes("Івасюка 122-Б"), `куди їхати важливіше за підпис: ${t}`);
+});
+
+test("місяць і час у SMS — рівно ті самі, що на екрані", () => {
+  const t = clientConfirmation(BIZ, BOOKING);
+  assert.ok(t.includes(shortDate(BOOKING.date)), "місяць скорочуємо одним способом на весь проєкт");
+  assert.ok(t.includes(BOOKING.time), "час не переформатовуємо");
+});
+
+test("адреса для SMS втрачає місто й тип вулиці, але не будинок", () => {
+  assert.equal(shortAddress("Бровари, вул. Сергія Москаленка, 20"), "Москаленка 20");
+  assert.equal(shortAddress("вул. Москаленка, 20"), "Москаленка 20");
+  assert.equal(shortAddress("Київ, Хрещатик 1"), "Хрещатик 1");
+  assert.equal(shortAddress("Бровари, ТЦ Аврора"), "ТЦ Аврора");
+  assert.equal(shortAddress(""), "");
+});
+
+test("«об» ставиться тільки перед одинадцятою", () => {
+  assert.equal(hourPrep("11:00"), "об");
+  for (const t of ["09:00", "10:30", "12:00", "18:00"]) assert.equal(hourPrep(t), "о", t);
 });
 
 test("адміністратор бачить телефон, авто і суму", () => {
@@ -182,7 +254,7 @@ test("кілька послуг ідуть одним записом і одні
     services: [{ name: "Діагностика", price: 600 }, { name: "Шиномонтаж", price: 120, from: true }],
     minutes: 120,
   };
-  assert.ok(clientConfirmation(BIZ, two).includes("Діагностика + Шиномонтаж"));
+  assert.ok(adminAlert(BIZ, two).includes("Діагностика + Шиномонтаж"), "власник бачить усі послуги");
   // Одна складова приблизна — уся сума приблизна, інакше вона бреше точністю.
   assert.ok(adminAlert(BIZ, two).includes("від 720 ₴"));
 });
@@ -209,6 +281,26 @@ test("buildAll дає рівно три повідомлення в правил
   assert.equal(all[0].when, "одразу");
   assert.equal(all[1].when, "одразу");
   assert.ok(all[2].when instanceof Date, "нагадування має конкретний час");
+});
+
+test("канали розділені: клієнту SMS, власнику Telegram (D-026)", () => {
+  const all = buildAll(BIZ, BOOKING);
+  assert.deepEqual(all.map((m) => m.channel), ["sms", "telegram", "sms"]);
+  // У Telegram не можна написати першим — клієнт цей чат ніколи не відкриє.
+  for (const m of all.filter((x) => x.to === "client")) {
+    assert.equal(m.channel, "sms");
+    assert.equal(m.chat, undefined, "у SMS немає ні аватарки, ні статусу «онлайн»");
+    assert.equal(m.parts.from, BIZ.name, "натомість є відправник");
+    assert.equal(smsLength(m.body).parts, 1, m.body);
+  }
+});
+
+test("нагадування в день візиту не каже «завтра»", () => {
+  // Записались сьогодні на сьогодні: нагадування йде за годину, і «завтра» в
+  // ньому було б прямою брехнею.
+  const now = new Date(2026, 7, 31, 9, 0);
+  const [, , reminder] = buildAll(BIZ, BOOKING, now);
+  assert.ok(reminder.body.includes("сьогодні"), reminder.body);
 });
 
 /* ── календар ───────────────────────────────────────────────────────── */
@@ -274,18 +366,10 @@ test("закритий день і забитий день — різні при
 /* ── текст повідомлень не має мовчки поїхати ────────────────────────── */
 
 test("розбивка на частини не змінила жодного символу того, що йде клієнту", () => {
-  const all = buildAll(BIZ, BOOKING);
+  const all = buildAll(BIZ, BOOKING, new Date(2026, 7, 20, 12, 0));
 
-  assert.equal(
-    all[0].body,
-    [
-      "Мега-Сервіс: Вас записано",
-      "Послуга: Комп'ютерна діагностика",
-      "Коли: 31 сер, 11:00",
-      "Адреса: вул. Москаленка, 20",
-      "Плани змінились? Просто напишіть тут — перенесемо або скасуємо.",
-    ].join("\n"),
-  );
+  assert.equal(all[0].body, "Мега-Сервіс: 31 сер 11:00, Комп'ютерна діагностика. Москаленка 20");
+  assert.equal(all[2].body, "Мега-Сервіс: завтра об 11:00 чекаємо вас. Москаленка 20");
 
   assert.equal(
     all[1].body,
@@ -300,19 +384,19 @@ test("розбивка на частини не змінила жодного с
     ].join("\n"),
   );
 
-  assert.equal(
-    all[2].body,
-    [
-      "Нагадування",
-      "Завтра о 11:00 чекаємо вас у Мега-Сервіс.",
-      "Комп'ютерна діагностика · 1 год",
-      "Підтвердіть, будь ласка, щоб ми не тримали час даремно.",
-    ].join("\n"),
-  );
 });
 
-test("у кожного повідомлення є частини, з яких демо малює бабл", () => {
+test("екран малює рівно те, що надсилається, — у кожному каналі своє", () => {
   for (const m of buildAll(BIZ, BOOKING)) {
+    if (m.channel === "sms") {
+      // Банер сповіщення: відправник зверху, текст під ним. Заголовка, рядків
+      // «ключ: значення» й аватарки в SMS не буває.
+      assert.ok(m.parts.from, "має бути відправник");
+      assert.equal(m.parts.text, m.body, "показуємо рівно те, що піде");
+      assert.ok(m.body.endsWith(m.parts.shown), "у банері назва закладу не дублюється");
+      assert.equal(m.parts.rows, undefined);
+      continue;
+    }
     assert.ok(m.chat.name, "має бути назва переписки");
     assert.ok(m.chat.tag, "має бути позначка, чий це екран");
     assert.equal(m.chat.avatar.length, 1, "аватар — одна літера");
@@ -405,12 +489,10 @@ test("на кожен крок є своя підказка", () => {
   for (const h of STEP_HINT) assert.ok(h.length > 10, `підказка надто коротка: ${h}`);
 });
 
-test("нагадування дає кнопки, якими клієнт відповідає боту", () => {
-  const [confirm, admin, reminder] = buildAll(BIZ, BOOKING);
-  assert.deepEqual(reminder.parts.buttons, ["Буду", "Перенести"]);
-  // Кнопки доречні тільки там, де від клієнта чекають відповіді.
-  assert.equal(confirm.parts.buttons, undefined);
-  assert.equal(admin.parts.buttons, undefined);
+test("у SMS немає кнопок, і вигадувати їх не можна", () => {
+  // Інлайн-клавіатура — річ Telegram. У SMS відповідь це набраний текст, тож
+  // обіцяти клієнту кнопку «Буду» означало б малювати те, чого він не побачить.
+  for (const m of buildAll(BIZ, BOOKING)) assert.equal(m.parts.buttons, undefined);
 });
 
 /* ── прокрутка до кроку ─────────────────────────────────────────────── */
@@ -544,7 +626,7 @@ test("вимкнене нагадування прибирає саме його
 
   const on = buildAll(BIZ, BOOKING);
   assert.equal(on.length, 3, "без прапорця нагадування є за замовчуванням");
-  assert.equal(on[2].parts.buttons.length, 2);
+  assert.equal(on[2].channel, "sms");
 });
 
 /* ── ціна і подія календаря ─────────────────────────────────────────── */
