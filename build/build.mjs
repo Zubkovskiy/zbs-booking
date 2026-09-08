@@ -70,6 +70,26 @@ function loadProfile(slug) {
 const RIBBON =
   '<div class="ribbon">Це <b>демонстрація</b>. Справжній запис не створюється, повідомлення нікому не йдуть.</div>';
 
+const esc = (s) =>
+  String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+/* Тема ставиться до першої відмальовки, окремим синхронним скриптом у <head>.
+   Модуль унизу сторінки для цього не годиться: він виконується вже після
+   першого кадру, і людина встигає побачити спалах не тієї теми. */
+const BOOT_BOOKING = [
+  'try{var t=localStorage.getItem("zbs-theme");',
+  'if(t==="light"||t==="dark")document.documentElement.dataset.theme=t;',
+  "}catch(e){}",
+].join("");
+
+const BOOT_DECK = [
+  "try{var d=document.documentElement,",
+  't=localStorage.getItem("zbs-deck-theme"),l=localStorage.getItem("zbs-deck-layout");',
+  'if(t==="light"||t==="dark")d.dataset.theme=t;',
+  'd.dataset.layout=(l==="phone"||l==="desk")?l:(innerWidth>=1180?"desk":"phone");',
+  "}catch(e){}",
+].join("");
+
 function build(slug) {
   const biz = loadProfile(slug);
   const demo = biz.mode !== "live";
@@ -95,12 +115,47 @@ mountBooking(document, BUSINESS, adapter);
       readFileSync(join(SRC, "ui", "booking.css"), "utf8"),
     ].join("\n"))
     .replace("{{RIBBON}}", demo ? RIBBON : "")
+    .replace("{{BOOT}}", BOOT_BOOKING)
     .replace("{{JS}}", entry);
 
   const dir = join(OUT, slug);
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "index.html"), html);
-  return { slug, bytes: Buffer.byteLength(html), demo };
+  return { slug, bytes: Buffer.byteLength(html), demo, deck: buildDeck(slug, biz, dir) };
+}
+
+/* ── презентація ────────────────────────────────────────────────────────
+   Лягає поруч із демо, у dist/<slug>/deck/. Через це посилання «Відкрити
+   демо» — просто «../», і той самий файл однаково працює локально й на
+   Pages, без жодного знання про домен.
+
+   Будується ТІЛЬКИ якщо в профілі є ключ `deck`. Презентація називає місто
+   й галузь у першому рядку; зібрана з чужим містом, вона гірша за
+   відсутню, тому мовчазних значень за замовчуванням тут немає. */
+
+function buildDeck(slug, biz, outDir) {
+  if (!biz.deck) return null;
+  const d = biz.deck;
+  if (!d.caption) throw new Error(`${slug}.json: deck.caption обов'язковий — у ньому галузь і місто`);
+
+  const entry = `${bundle(join(SRC, "deck", "deck.js"))}\n\nmountDeck(document);`;
+
+  const html = readFileSync(join(SRC, "deck", "index.html"), "utf8")
+    .replace("{{TITLE}}", esc(d.title ?? `${biz.name} · онлайн-запис`))
+    .replace("{{DESCRIPTION}}", esc(d.description ?? "Клієнт записується сам. Ви бачите заявку одразу."))
+    .replace("{{CSS}}", readFileSync(join(SRC, "deck", "deck.css"), "utf8"))
+    .replace("{{BOOT}}", BOOT_DECK)
+    .replace("{{CAPTION}}", esc(d.caption))
+    // Рядок порівняння необов'язковий: без перевіреної чужої ціни його краще
+    // не показувати взагалі, ніж показати застарілу.
+    .replace("{{COMPARE}}", d.compare ? `<p class="compare">${esc(d.compare)}</p>` : "")
+    .replace("{{DEMO_URL}}", "../")
+    .replace("{{JS}}", entry);
+
+  const dir = join(outDir, "deck");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "index.html"), html);
+  return Buffer.byteLength(html);
 }
 
 /* ── запуск ─────────────────────────────────────────────────────────── */
@@ -119,10 +174,11 @@ for (const slug of slugs) {
   try {
     const r = build(slug);
     console.log(`✓ ${r.slug.padEnd(16)} ${(r.bytes / 1024).toFixed(1).padStart(6)} КБ  ${r.demo ? "демо" : "БОЙОВИЙ"}`);
+    if (r.deck) console.log(`  └ deck/${" ".repeat(9)}${(r.deck / 1024).toFixed(1).padStart(6)} КБ  презентація`);
   } catch (e) {
     failed++;
     console.error(`✗ ${slug}: ${e.message}`);
   }
 }
 if (failed) process.exit(1);
-console.log(`\nГотово: dist/<slug>/index.html`);
+console.log(`\nГотово: dist/<slug>/index.html · презентація в dist/<slug>/deck/`);

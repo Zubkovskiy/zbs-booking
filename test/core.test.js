@@ -8,6 +8,7 @@ import { normalizePhone, prettyPhone, normalizeName, localPhone } from "../src/c
 import { clientConfirmation, clientReminder, adminAlert, reminderAt, buildAll, smsLength } from "../src/core/messages.js";
 import { stepStates, activeStep, openStep, STEP_HINT } from "../src/core/guide.js";
 import { stepScrollTop, scrollDuration, easeInOut } from "../src/core/scroll.js";
+import { startTheme, startLayout, autoLayout, flipTheme, flipLayout, themeLabel, layoutLabel, DESK_FROM } from "../src/core/theme.js";
 
 const HOURS = { from: 9, to: 12, stepMin: 60 };
 const BIZ = {
@@ -709,4 +710,38 @@ test("тривалість візиту — сума послуг, а слоті
   assert.equal(slotsNeeded(45, 60), 1);
   assert.equal(slotsNeeded(135, 60), 3);
   assert.equal(slotsNeeded(120, 60), 2, "рівно дві години — це дві, а не три");
+});
+
+/* ── тема і формат ──────────────────────────────────────────────────── */
+
+test("вибір людини сильніший за систему, а без вибору слухаємо систему", () => {
+  assert.equal(startTheme("light", true), "light", "обране світле лишається світлим у темній системі");
+  assert.equal(startTheme("dark", false), "dark");
+  assert.equal(startTheme(null, true), "dark");
+  assert.equal(startTheme(null, false), "light");
+  assert.equal(startTheme("сміття", true), "dark", "непридатне значення зі сховища ігноруємо");
+});
+
+test("сторінка може мати власну думку про тему, але тільки за відсутності вибору", () => {
+  assert.equal(startTheme(null, true, "light"), "light", "презентація світла навіть у темній системі");
+  assert.equal(startTheme("dark", true, "light"), "dark", "але вибір людини сильніший і за неї");
+});
+
+test("формат артборда береться за шириною вікна, поки його не перемкнули", () => {
+  assert.equal(autoLayout(DESK_FROM), "desk");
+  assert.equal(autoLayout(DESK_FROM - 1), "phone");
+  assert.equal(startLayout(null, 390), "phone");
+  assert.equal(startLayout("desk", 390), "desk", "перемкнутий формат не скидається на вузькому екрані");
+});
+
+test("підпис кнопки називає НАСТУПНИЙ стан, а не поточний", () => {
+  assert.equal(themeLabel("light"), "Темна тема");
+  assert.equal(themeLabel("dark"), "Світла тема");
+  assert.equal(layoutLabel("phone"), "Формат ПК");
+  assert.equal(layoutLabel("desk"), "Формат телефона");
+});
+
+test("перемикач завжди повертає в попередній стан", () => {
+  for (const t of ["light", "dark"]) assert.equal(flipTheme(flipTheme(t)), t);
+  for (const l of ["phone", "desk"]) assert.equal(flipLayout(flipLayout(l)), l);
 });

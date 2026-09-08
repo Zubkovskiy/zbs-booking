@@ -1,0 +1,219 @@
+/* ПРЕЗЕНТАЦІЯ. Вертикальна канва з семи артбордів — те, що власник читає з
+   телефона за дві хвилини, перш ніж відкрити демо.
+
+   Зроблено за полотном «Auto Service Booking Deck». У полотні все лежало
+   інлайновими стилями (так працює редактор); тут ті самі числа розкладені по
+   класах, як і решта проєкту. Значення не підбирались на око — вони з
+   таблиці токенів у хендофі, і міняти їх без полотна не треба.
+
+   Дві осі перемикання, обидві через атрибути на <html>:
+     data-theme  = light | dark      (світла — основна, її бачать удень)
+     data-layout = phone | desk      (артборд 480×900 або 1280×720)
+
+   Медіазапитів немає навмисно: ширину колонок тримає flex-wrap, а розміри —
+   змінні формату. Через це той самий файл однаково виглядає і на телефоні,
+   і на проєкторі, а перемикач формату лишається чесним, а не косметичним. */
+
+:root{
+  --bg:#E8E8E2; --card:#FBFAF7; --soft:#F1F1EA; --line:#E3E3DA;
+  --ink:#17191A; --mut:#565B55;
+  --acc:#C8F751; --on-acc:#17191A; --on-acc-2:#3B4A12;
+  --frame:#17191A; --shadow-lg:none;
+  --bar-bg:rgba(251,250,247,.88);
+
+  --aw:480px; --ah:900px; --pad:44px 40px; --radius:30px; --gap:32px;
+  --hero:47px; --title:35px; --lead:23px; --body:19px; --cap:12px; --num:58px;
+  --phw:126px; --phh:268px; --pht:11px; --phs:10px; --php:9px 8px;
+  --phg:7px; --phr:18px; --phcr:8px;
+}
+:root[data-theme="dark"]{
+  --bg:#0A0A0A; --card:#141414; --soft:#1C1C1C; --line:#2B2B2B;
+  --ink:#F8F8F8; --mut:#8E938A;
+  --acc:#A2FF01; --on-acc:#0A0A0A; --on-acc-2:#24380A;
+  --frame:#3A3A3A; --shadow-lg:0 10px 28px rgba(0,0,0,.45);
+  --bar-bg:rgba(20,20,20,.86);
+}
+:root[data-layout="desk"]{
+  --aw:1280px; --ah:720px; --pad:68px 72px; --radius:34px; --gap:56px;
+  --hero:82px; --title:58px; --lead:32px; --body:25px; --cap:14px; --num:104px;
+  --phw:208px; --phh:440px; --pht:17px; --phs:15px; --php:15px 13px;
+  --phg:11px; --phr:28px; --phcr:13px;
+}
+
+*{box-sizing:border-box}
+html{color-scheme:light}
+html[data-theme="dark"]{color-scheme:dark}
+body{
+  margin:0;background:var(--bg);color:var(--ink);
+  font-family:Manrope,system-ui,-apple-system,"Segoe UI",sans-serif;
+  -webkit-font-smoothing:antialiased;
+  transition:background 180ms linear;
+}
+a{color:var(--ink);text-decoration:none}
+h1,h2,p{margin:0}
+
+/* Нижній відступ великий навмисно: під ним висить панель перемикачів, і
+   останній артборд не має ховатись за нею. */
+.deck{
+  display:flex;flex-direction:column;align-items:center;gap:52px;
+  padding:56px 20px 130px;min-height:100vh;
+}
+.board{
+  width:min(var(--aw),100%);min-height:var(--ah);
+  background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow-lg);
+  padding:var(--pad);display:flex;flex-wrap:wrap;gap:var(--gap);
+}
+/* Колонки складаються стовпчиком самі, щойно їм тісно, — flex-basis і робить
+   адаптив. Усім дітям min-width:0, інакше довгий рядок розпирає колонку
+   за екран (та сама пастка, що й на сторінці запису). */
+.col{flex:1 1 300px;min-width:0;display:flex;flex-direction:column;justify-content:space-between;gap:24px}
+.col-r{flex:1 1 340px;min-width:0;display:flex;flex-direction:column;justify-content:space-between;gap:var(--gap)}
+
+.h2{font-size:var(--title);line-height:1.05;font-weight:800;letter-spacing:-.03em;color:var(--ink);text-wrap:pretty}
+.cap{font-size:var(--cap);font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--mut)}
+.rule{height:1px;background:var(--line)}
+.foot-note{font-size:var(--body);line-height:1.3;font-weight:600;color:var(--mut);text-wrap:pretty}
+
+/* ── 01 обкладинка ──────────────────────────────────────────────────────── */
+.cover{flex-direction:column;justify-content:space-between}
+.hero{
+  max-width:15ch;font-size:var(--hero);line-height:1.03;font-weight:800;
+  letter-spacing:-.035em;color:var(--ink);text-wrap:pretty;
+}
+/* Єдиний акцент екрана — одне слово.
+   inline-block і власний line-height тут не косметика: у звичайного
+   інлайнового елемента висота фону береться з МЕТРИК ШРИФТА, а не з
+   line-height рядка. При заголовку з line-height 1.03 плашка виростала
+   приблизно на 9px угору й з'їдала нижню третину слова над собою.
+   box-decoration-break лишається на випадок, якщо колись підсвітять
+   словосполучення, яке може перенестись. */
+.mark{
+  display:inline-block;line-height:1.03;
+  background:var(--acc);color:var(--on-acc);padding:0 8px 3px;border-radius:6px;
+  -webkit-box-decoration-break:clone;box-decoration-break:clone;
+}
+.sign{display:flex;flex-direction:column;gap:6px}
+.sign .rule{margin-bottom:18px}
+.sign-name{font-size:15px;font-weight:700;color:var(--ink)}
+.sign-link{font-size:13px;font-weight:600;color:var(--mut)}
+
+/* ── 02 і 05: списки з хайрлайнами ──────────────────────────────────────── */
+.list{display:flex;flex-direction:column}
+.list > div:not(.rule){
+  padding:26px 0;font-size:var(--lead);line-height:1.22;font-weight:700;
+  letter-spacing:-.015em;color:var(--ink);
+}
+.list-wide > div:not(.rule){padding:27px 0;line-height:1.2;letter-spacing:-.018em}
+.tick-row{display:flex;flex-direction:column;gap:18px}
+.dash{width:52px;height:5px;background:var(--acc);border-radius:3px}
+.dot-h{display:flex;align-items:center;gap:14px}
+.dot-h i{width:13px;height:13px;border-radius:50%;background:var(--acc);flex:none}
+.eyebrow{font-size:13px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--mut)}
+
+/* ── 03 намальовані екрани телефона ─────────────────────────────────────── */
+/* Це ілюстрація всередині презентації, а не справжній інтерфейс: усередині
+   немає жодного інтерактивного елемента, і бути не повинно. */
+.phones{display:flex;gap:15px;justify-content:center;flex-wrap:wrap}
+.ph{display:flex;flex-direction:column;gap:12px;width:var(--phw)}
+.ph-body{
+  height:var(--phh);background:var(--card);border:1.5px solid var(--frame);
+  border-radius:var(--phr);padding:var(--php);
+  display:flex;flex-direction:column;gap:var(--phg);overflow:hidden;
+}
+.ph-speaker{width:30px;height:3px;border-radius:2px;background:var(--frame);margin:1px auto 3px}
+.ph-lab{font-size:var(--phs);font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--mut)}
+.ph-cap{font-size:12.5px;font-weight:700;color:var(--mut);text-align:center}
+.ph-t{font-size:var(--pht);font-weight:700;color:var(--ink)}
+.ph-s{font-size:var(--phs);font-weight:600;color:var(--mut)}
+.ph-pick{border:1.5px solid var(--ink);border-radius:var(--phcr);padding:8px;display:flex;flex-direction:column;gap:2px}
+.ph-row{padding:7px 8px;display:flex;flex-direction:column;gap:2px;border-top:1px solid var(--line)}
+.ph-row .ph-t{font-weight:600}
+.ph-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.ph-slot{
+  border:1px solid var(--line);border-radius:7px;padding:7px 0;
+  font-size:var(--pht);font-weight:700;color:var(--ink);text-align:center;
+}
+.ph-slot.gone{color:var(--mut)}
+.ph-slot.on{background:var(--acc);border-color:transparent;color:var(--on-acc);font-weight:800}
+.ph-go{
+  margin-top:auto;background:var(--ink);border-radius:var(--phcr);padding:9px 0;
+  font-size:var(--pht);font-weight:700;color:var(--card);text-align:center;
+}
+.ph-sms{
+  background:var(--soft);border-radius:10px;border-bottom-left-radius:3px;
+  padding:9px 9px 10px;display:flex;flex-direction:column;gap:5px;
+}
+.ph-sms .ph-t{line-height:1.35}
+.ph-sms .ph-s{line-height:1.4}
+.ph-when{font-size:var(--phs);font-weight:600;color:var(--mut);padding-left:2px}
+.punch{font-size:var(--lead);line-height:1.2;font-weight:800;letter-spacing:-.02em;color:var(--ink)}
+
+/* ── 04 повідомлення власнику ───────────────────────────────────────────── */
+.msg{
+  background:var(--card);border:1.5px solid var(--frame);border-radius:20px;
+  padding:20px 20px 18px;display:flex;flex-direction:column;gap:16px;
+}
+.msg-top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.chip{
+  background:var(--acc);border-radius:7px;padding:5px 10px 6px;
+  font-size:12px;font-weight:800;color:var(--on-acc);white-space:nowrap;
+}
+.msg-src{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--mut)}
+.msg-when{font-size:27px;line-height:1.05;font-weight:800;letter-spacing:-.025em;color:var(--ink)}
+.kv{display:grid;grid-template-columns:88px 1fr;row-gap:11px;column-gap:12px;align-items:baseline}
+.kv dt{font-size:13px;font-weight:600;color:var(--mut);margin:0}
+.kv dd{font-size:15px;font-weight:700;color:var(--ink);margin:0;min-width:0}
+.pills{display:flex;gap:9px;flex-wrap:wrap}
+.pill{border:1.5px solid var(--line);border-radius:999px;padding:10px 16px;font-size:14px;font-weight:700;color:var(--mut)}
+.said{font-size:var(--body);line-height:1.3;font-weight:700;letter-spacing:-.015em;color:var(--ink);text-wrap:pretty}
+
+/* ── 06 ціна ────────────────────────────────────────────────────────────── */
+.price{background:var(--acc);border-radius:22px;padding:34px 28px 30px;display:flex;flex-direction:column;gap:6px}
+.price b{font-size:var(--num);line-height:.95;font-weight:800;letter-spacing:-.04em;color:var(--on-acc)}
+.price span{font-size:18px;font-weight:700;color:var(--on-acc-2)}
+.terms{display:flex;flex-direction:column}
+.terms > div{padding:15px 0;font-size:17px;font-weight:700;color:var(--ink);border-bottom:1px solid var(--line)}
+.compare{font-size:15px;line-height:1.4;font-weight:600;color:var(--mut);text-wrap:pretty}
+.claim{font-size:var(--body);line-height:1.3;font-weight:800;letter-spacing:-.015em;color:var(--ink)}
+
+/* ── 07 дія ─────────────────────────────────────────────────────────────── */
+.col-act{flex:1 1 340px;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:22px}
+.open{
+  background:var(--acc);color:var(--on-acc);border-radius:22px;padding:30px 28px;
+  display:flex;align-items:flex-end;justify-content:space-between;gap:16px;
+  transition:transform 140ms cubic-bezier(.2,0,0,1);
+}
+.open span:first-child{font-size:var(--lead);line-height:1.05;font-weight:800;letter-spacing:-.03em}
+.open span:last-child{font-size:var(--lead);font-weight:700;line-height:1}
+.open:active{transform:scale(.99)}
+.after{font-size:17px;line-height:1.4;font-weight:600;color:var(--mut);text-wrap:pretty}
+.sign-lg{font-size:17px;font-weight:800;letter-spacing:-.015em;color:var(--ink)}
+
+/* ── перемикачі ─────────────────────────────────────────────────────────── */
+/* Знизу, а не зверху: угорі на айфоні смуга лягає під чубчик — на це вже
+   наступали на сторінці запису. Плюс safe-area, щоб не сідала на смужку
+   жестів. */
+/* width:max-content обов'язковий. Фіксований блок із самим лише left:50%
+   отримує на розкладку рівно половину екрана — і на телефоні підписи кнопок
+   ламались на два рядки. transform повертає панель у центр уже після того,
+   як ширину пораховано. */
+.bar{
+  position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));
+  transform:translateX(-50%);z-index:20;
+  width:max-content;max-width:calc(100vw - 32px);
+  display:flex;gap:8px;padding:8px;border-radius:999px;
+  background:var(--bar-bg);border:1px solid var(--line);
+  -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
+  box-shadow:0 6px 22px rgba(0,0,0,.16);
+}
+.bar button{
+  font-family:inherit;cursor:pointer;border:1px solid var(--line);background:transparent;
+  color:var(--ink);border-radius:999px;padding:9px 16px;font-size:13px;font-weight:700;
+  white-space:nowrap;transition:border-color 140ms linear;
+}
+@media (hover:hover){.bar button:hover{border-color:var(--acc)}}
+.bar button:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+
+@media (prefers-reduced-motion:reduce){
+  body,.open,.bar button{transition:none}
+}

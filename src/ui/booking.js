@@ -11,6 +11,7 @@ import { shortDate, dayWithWeekday, relLongDayLabel, monthTitle, freeLabel, busy
 import { icsEvent, mapsLink } from "../core/calendar.js";
 import { normalizeName, normalizePhone, prettyPhone, localPhone } from "../core/validate.js";
 import { stepStates, activeStep, openStep, STEP_HINT } from "../core/guide.js";
+import { startTheme, flipTheme, themeLabel } from "../core/theme.js";
 import { createScroller, glideToStep, morphHeight, calmMotion } from "./motion.js";
 
 /** На скільки днів уперед відкритий запис. Три місяці — щоб при щільному
@@ -24,6 +25,8 @@ const BIG_TICK = '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" st
 const READ_TICK = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m1 13 4 4L14 8"/><path d="m9 13 4 4L22 8"/></svg>';
 const PLUS = '<svg class="i-plus" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
 const SMS_ICON = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.6-.7L3 21l1.8-5A8.3 8.3 0 0 1 4 11.5 8.4 8.4 0 0 1 12.5 3 8.4 8.4 0 0 1 21 11.5Z"/></svg>';
+const MOON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 14.6A8.6 8.6 0 0 1 9.4 3.5a8.6 8.6 0 1 0 11.1 11.1Z"/></svg>';
+const SUN = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.2M12 19.8V22M4.2 12H2M22 12h-2.2M5.6 5.6 4 4M20 20l-1.6-1.6M18.4 5.6 20 4M4 20l1.6-1.6"/></svg>';
 const ANY_UNIT = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 20v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1"/><circle cx="7.5" cy="7" r="3.2"/><path d="M16 15.2a4 4 0 0 1 6 3.5V20"/><circle cx="16.8" cy="7.4" r="2.8"/></svg>';
 
 const pad = (n) => String(n).padStart(2, "0");
@@ -72,6 +75,38 @@ export function mountBooking(root, business, adapter) {
   if (business.phone) {
     $("b-call").href = `tel:${business.phone.replace(/[^\d+]/g, "")}`;
     $("b-call").hidden = false;
+  }
+
+  /* Тема. Поки людина не вибрала сама, атрибута на <html> немає зовсім — і
+     сторінка слухає системну настройку, зокрема коли телефон сам темніє
+     ввечері. Щойно вибір зроблено, він сильніший за систему й переживає
+     перезавантаження. Значок і підпис показують НАСТУПНИЙ стан, а не
+     поточний: інакше кнопку читають як індикатор і тиснуть навпаки. */
+  {
+    const KEY = "zbs-theme";
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const btn = $("b-theme");
+    let saved = null;
+    try { saved = localStorage.getItem(KEY); } catch { /* сховище буває закрите */ }
+    let theme = startTheme(saved, media.matches);
+
+    function paintTheme() {
+      const next = flipTheme(theme);
+      btn.innerHTML = next === "dark" ? MOON : SUN;
+      btn.setAttribute("aria-label", themeLabel(theme));
+      btn.title = themeLabel(theme);
+    }
+    // Система змінилась, а свого вибору ще немає — йдемо за нею.
+    media.onchange = (e) => { if (!saved) { theme = e.matches ? "dark" : "light"; paintTheme(); } };
+
+    btn.onclick = () => {
+      theme = flipTheme(theme);
+      saved = theme;
+      root.documentElement.dataset.theme = theme;
+      try { localStorage.setItem(KEY, theme); } catch { /* нема то й нема */ }
+      paintTheme();
+    };
+    paintTheme();
   }
 
   const state = {

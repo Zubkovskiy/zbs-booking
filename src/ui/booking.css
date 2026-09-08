@@ -65,12 +65,17 @@ body{padding-bottom:104px}   /* під липку панель із кнопко
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
 .brand-sub{display:block;font-size:12px;color:var(--mut);margin-top:2px}
-.call{
+/* Дві кнопки шапки — дзвінок і тема — однакові на вигляд навмисно: це один
+   ряд дій, а не головна й другорядна. */
+.hbtn{
   flex:none;width:44px;height:44px;border-radius:var(--r-item);
   border:1px solid var(--line);background:var(--card);color:var(--ink);
-  display:grid;place-items:center;
-  transition:border-color var(--t-swap) var(--ease),color var(--t-swap) var(--ease);
+  display:grid;place-items:center;cursor:pointer;
+  transition:border-color var(--t-swap) var(--ease),color var(--t-swap) var(--ease),
+             transform var(--t-tap) var(--ease-tap);
 }
+.hbtn svg{display:block}
+.hbtn:active{transform:scale(.96)}
 
 .progress{display:flex;align-items:center;gap:10px;margin-top:12px}
 .track{flex:1;height:6px;border-radius:var(--r-pill);background:var(--soft);overflow:hidden}
@@ -481,7 +486,7 @@ input:-webkit-autofill:focus{
   .dot:hover .i-plus{color:var(--acc-ink)}
   .opt.sel .dot:hover{background:var(--acc)}
   .opt:hover,.switch:hover,.cell.free:hover,
-  .slot:not([disabled]):hover,.nav:not([disabled]):hover,.call:hover{
+  .slot:not([disabled]):hover,.nav:not([disabled]):hover,.hbtn:hover{
     border-color:var(--acc);transform:translateY(-1px);
   }
   .cell.free:hover,.nav:not([disabled]):hover{transform:none}
