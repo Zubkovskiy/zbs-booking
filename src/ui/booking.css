@@ -50,6 +50,18 @@ body{padding-bottom:104px}   /* під липку панель із кнопко
   margin:-14px -14px 0;padding:14px 16px 12px;
   background:var(--bg);border-bottom:1px solid var(--line);
 }
+/* Браузери всередині месенджерів малюють свою панель НАПІВПРОЗОРО поверх
+   сторінки й при цьому лишають липкий верх нижче за неї. У щілині, що
+   утворюється, видно, як їдуть картки послуг, — і це читається як поломка
+   саме там, де ми обіцяємо, що нічого не смикається.
+   Домальовуємо те саме тло вгору: щілини просто не існує. Висота з запасом,
+   бо панелі в різних застосунках різні; у нормальних умовах цей шар лежить
+   поза екраном і не коштує нічого. */
+.top::before{
+  content:"";position:absolute;left:0;right:0;bottom:100%;height:260px;
+  background:var(--bg);
+}
+.shell.finished .top::before{display:none}
 .flow{padding-top:14px}
 .brand{display:flex;align-items:center;gap:10px}
 .logo{
