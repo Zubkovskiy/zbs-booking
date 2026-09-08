@@ -2,7 +2,10 @@
 <html lang="uk" data-theme="dark">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- viewport-fit=cover тут навмисно НЕМАЄ: повноекранного вмісту в презентації
+     не буває, а на iOS cover міняє те, як рахуються одиниці вікна й безпечні
+     поля, коли ховається адресний рядок. Одна залежність від вікна менше. -->
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="format-detection" content="telephone=no">
 <title>{{TITLE}}</title>
 <meta name="description" content="{{DESCRIPTION}}">
