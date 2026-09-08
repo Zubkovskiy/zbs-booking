@@ -161,9 +161,6 @@ function buildDeck(slug, biz, outDir) {
     .replace("{{TICK}}", ICON_TICK)
     .replace(/\{\{PLUS\}\}/g, ICON_PLUS)
     .replace(/\{\{CHAT\}\}/g, ICON_CHAT)
-    // Рядок порівняння необов'язковий: без перевіреної чужої ціни його краще
-    // не показувати взагалі, ніж показати застарілу.
-    .replace("{{COMPARE}}", d.compare ? `<p class="compare">${esc(d.compare)}</p>` : "")
     .replace("{{DEMO_URL}}", "../")
     .replace("{{JS}}", entry);
 
