@@ -1,15 +1,15 @@
 <!doctype html>
-<html lang="uk" data-theme="light" data-layout="phone">
+<html lang="uk" data-theme="dark">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="format-detection" content="telephone=no">
 <title>{{TITLE}}</title>
 <meta name="description" content="{{DESCRIPTION}}">
 <meta name="robots" content="noindex, nofollow">
 <link rel="icon" href="data:,">
-<!-- Тема й формат ставляться ДО першої відмальовки: інакше людина, яка
-     минулого разу лишила темну, побачить спалах світлої. -->
+<!-- Тема ставиться ДО першої відмальовки: інакше людина, яка минулого разу
+     лишила світлу, побачить спалах темної. -->
 <script>{{BOOT}}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -51,7 +51,7 @@
     </div>
   </section>
 
-  <!-- 03 · Для клієнта. Намальовані екрани — ілюстрація, не інтерфейс. -->
+  <!-- 03 · Для клієнта. Усередині рамок — справжні блоки сторінки запису. -->
   <section class="board">
     <div class="col" style="flex-basis:260px"><h2 class="h2">Як це виглядає для клієнта</h2></div>
     <div class="col-r" style="flex:2 1 400px">
@@ -61,17 +61,24 @@
           <div class="ph-body" aria-hidden="true">
             <div class="ph-speaker"></div>
             <div class="ph-lab">послуги</div>
-            <div class="ph-pick">
-              <div class="ph-t">Заміна масла</div>
-              <div class="ph-s">1 350 ₴ · 40 хв</div>
+            <div class="m-svc on">
+              <span class="m-txt"><b>Заміна масла</b><i>40 хв</i></span>
+              <span class="m-price">1 350 ₴</span>
+              <span class="m-dot">{{TICK}}</span>
             </div>
-            <div class="ph-row">
-              <div class="ph-t">Діагностика</div>
-              <div class="ph-s">400 ₴ · 30 хв</div>
+            <div class="m-svc">
+              <span class="m-txt"><b>Діагностика</b><i>30 хв</i></span>
+              <span class="m-price">400 ₴</span>
+              <span class="m-dot">{{PLUS}}</span>
             </div>
-            <div class="ph-row">
-              <div class="ph-t">Розвал-збіжність</div>
-              <div class="ph-s">750 ₴ · 1 год</div>
+            <div class="m-svc">
+              <span class="m-txt"><b>Розвал-збіжність</b><i>1 год</i></span>
+              <span class="m-price">750 ₴</span>
+              <span class="m-dot">{{PLUS}}</span>
+            </div>
+            <div class="m-bar">
+              <span class="m-sum"><b>1 350 ₴</b><i>40 хв</i></span>
+              <span class="m-go">Далі</span>
             </div>
           </div>
           <div class="ph-cap">обрав послугу</div>
@@ -81,15 +88,27 @@
           <div class="ph-body" aria-hidden="true">
             <div class="ph-speaker"></div>
             <div class="ph-lab">12 вересня</div>
-            <div class="ph-grid">
-              <div class="ph-slot gone">09:00</div>
-              <div class="ph-slot">10:00</div>
-              <div class="ph-slot on">11:00</div>
-              <div class="ph-slot">12:00</div>
-              <div class="ph-slot">15:00</div>
-              <div class="ph-slot gone">16:00</div>
+            <div class="m-part">ранок</div>
+            <div class="m-slots">
+              <div class="m-slot gone">09:00</div>
+              <div class="m-slot">10:00</div>
+              <div class="m-slot on">11:00</div>
             </div>
-            <div class="ph-go">Записатись</div>
+            <div class="m-part">день</div>
+            <div class="m-slots">
+              <div class="m-slot">12:00</div>
+              <div class="m-slot">15:00</div>
+              <div class="m-slot gone">16:00</div>
+            </div>
+            <div class="m-part">вечір</div>
+            <div class="m-slots">
+              <div class="m-slot">17:00</div>
+              <div class="m-slot gone">18:00</div>
+            </div>
+            <div class="m-bar">
+              <span class="m-sum"><b>1 350 ₴</b><i>40 хв</i></span>
+              <span class="m-go">Записатись</span>
+            </div>
           </div>
           <div class="ph-cap">обрав вільний час</div>
         </div>
@@ -98,11 +117,22 @@
           <div class="ph-body" aria-hidden="true">
             <div class="ph-speaker"></div>
             <div class="ph-lab">sms</div>
-            <div class="ph-sms">
-              <div class="ph-t">Ви записані: 12 вер, 11:00.</div>
-              <div class="ph-s">Заміна масла, майстер Сергій. Скасувати — за посиланням.</div>
+            <div class="m-sms">
+              <div class="m-sms-top">
+                <span class="m-ic">{{CHAT}}</span>
+                <span class="m-from">{{BIZ}}</span>
+                <span class="m-at">зараз</span>
+              </div>
+              <p>12 вер 11:00, Заміна масла. {{ADDR}}</p>
             </div>
-            <div class="ph-when">щойно</div>
+            <div class="m-sms">
+              <div class="m-sms-top">
+                <span class="m-ic">{{CHAT}}</span>
+                <span class="m-from">{{BIZ}}</span>
+                <span class="m-at">завтра</span>
+              </div>
+              <p>завтра об 11:00 чекаємо вас. {{ADDR}}</p>
+            </div>
           </div>
           <div class="ph-cap">отримав підтвердження</div>
         </div>
@@ -116,7 +146,7 @@
   <section class="board">
     <div class="col"><h2 class="h2">Що приходить вам</h2></div>
     <div class="col-r" style="flex-basis:360px">
-      <div style="display:flex;flex-direction:column;gap:16px">
+      <div style="display:flex;flex-direction:column;gap:14px">
         <div class="msg" aria-hidden="true">
           <div class="msg-top">
             <div class="chip">Новий запис</div>
@@ -166,7 +196,7 @@
   <section class="board">
     <div class="col"><h2 class="h2">Скільки це коштує</h2></div>
     <div class="col-r">
-      <div style="display:flex;flex-direction:column;gap:22px">
+      <div style="display:flex;flex-direction:column;gap:20px">
         <div class="price">
           <b>1 200 ₴</b>
           <span>на місяць</span>
@@ -177,7 +207,7 @@
           <div>Скасувати будь-коли</div>
         </div>
       </div>
-      <div style="display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;flex-direction:column;gap:12px">
         {{COMPARE}}
         <p class="claim">Від вас потрібно 2 години за весь запуск.</p>
       </div>
@@ -205,10 +235,7 @@
 
 </main>
 
-<div class="bar">
-  <button type="button" id="t-theme"></button>
-  <button type="button" id="t-layout"></button>
-</div>
+<button class="theme-btn" type="button" id="t-theme"></button>
 
 <script type="module">{{JS}}</script>
 </body>

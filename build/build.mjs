@@ -11,6 +11,9 @@ import { readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync } from "nod
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+// Коротка адреса в презентації має бути ТА САМА, що в SMS. Одне джерело.
+import { shortAddress } from "../src/core/format.js";
+
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const SRC = join(ROOT, "src");
 const OUT = join(ROOT, "dist");
@@ -83,12 +86,16 @@ const BOOT_BOOKING = [
 ].join("");
 
 const BOOT_DECK = [
-  "try{var d=document.documentElement,",
-  't=localStorage.getItem("zbs-deck-theme"),l=localStorage.getItem("zbs-deck-layout");',
-  'if(t==="light"||t==="dark")d.dataset.theme=t;',
-  'd.dataset.layout=(l==="phone"||l==="desk")?l:(innerWidth>=1180?"desk":"phone");',
+  'try{var t=localStorage.getItem("zbs-deck-theme");',
+  'if(t==="light")document.documentElement.dataset.theme=t;',
   "}catch(e){}",
 ].join("");
+
+/* Значки для намальованих екранів у третьому артборді. Ті самі контури, що й
+   на сторінці запису: це має бути впізнавано як один продукт. */
+const ICON_TICK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+const ICON_PLUS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
+const ICON_CHAT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.6-.7L3 21l1.8-5A8.3 8.3 0 0 1 4 11.5 8.4 8.4 0 0 1 12.5 3 8.4 8.4 0 0 1 21 11.5Z"/></svg>';
 
 function build(slug) {
   const biz = loadProfile(slug);
@@ -146,6 +153,14 @@ function buildDeck(slug, biz, outDir) {
     .replace("{{CSS}}", readFileSync(join(SRC, "deck", "deck.css"), "utf8"))
     .replace("{{BOOT}}", BOOT_DECK)
     .replace("{{CAPTION}}", esc(d.caption))
+    // Назва й коротка адреса — справжні, з профілю: у прикладі SMS власник має
+    // побачити своє ім'я відправника, а не чуже. Послуга й дата лишаються
+    // ілюстрацією, і про це прямо сказано на останньому артборді.
+    .replace(/\{\{BIZ\}\}/g, esc(biz.name))
+    .replace(/\{\{ADDR\}\}/g, esc(shortAddress(biz.address)))
+    .replace("{{TICK}}", ICON_TICK)
+    .replace(/\{\{PLUS\}\}/g, ICON_PLUS)
+    .replace(/\{\{CHAT\}\}/g, ICON_CHAT)
     // Рядок порівняння необов'язковий: без перевіреної чужої ціни його краще
     // не показувати взагалі, ніж показати застарілу.
     .replace("{{COMPARE}}", d.compare ? `<p class="compare">${esc(d.compare)}</p>` : "")
